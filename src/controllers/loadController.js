@@ -31,10 +31,11 @@ module.exports = {
                         location: load.deliveryLocation,
                         date: load.deliveryDate
                     },
-                    weight: load.weight,
+                    balance: load.balance,
                     rate: load.rate,
                     equipmentType: load.equipmentType,
                     details: load.details,
+                    mobilePhone: load.mobilePhone,
                     createdAt: load.createdAt
                 }
             });
@@ -153,7 +154,7 @@ module.exports = {
                 include: [{
                     model: User,
                     as: 'user',
-                    attributes: ['id', 'companyName', 'contactName', 'phone', 'email']
+                    attributes: ['id', 'company_name', 'contact_name', 'phone', 'email']
                 }],
                 order: [['created_at', 'DESC']],
                 attributes: [
@@ -166,10 +167,11 @@ module.exports = {
                     'delivery_location',
                     'delivery_zip',
                     'delivery_date',
-                    'weight',
+                    'balance',
                     'rate',
                     'equipment_type',
                     'details',
+                    'mobile_phone',
                     'created_at'
                 ],
                 distinct: true,
@@ -201,10 +203,11 @@ module.exports = {
                             destinationLocation: loadData.delivery_location,
                             pickupDate: loadData.pickup_date,
                             deliveryDate: loadData.delivery_date,
-                            weight: loadData.weight,
+                            balance: loadData.balance,
                             rate: loadData.rate,
                             equipmentType: loadData.equipment_type,
                             details: loadData.details,
+                            mobilePhone: loadData.mobilePhone,
                             contact: {
                                 company: loadData.user.companyName,
                                 name: loadData.user.contactName,
@@ -224,10 +227,11 @@ module.exports = {
                             destinationLocation: loadData.delivery_location,
                             pickupDate: loadData.pickup_date,
                             deliveryDate: loadData.delivery_date,
-                            weight: loadData.weight,
+                            balance: loadData.balance,
                             rate: loadData.rate,
                             equipmentType: loadData.equipment_type,
                             details: loadData.details,
+                            mobilePhone: loadData.mobilePhone,
                             contact: {
                                 company: loadData.user.companyName,
                                 name: loadData.user.contactName,
@@ -245,9 +249,10 @@ module.exports = {
                             locationZip: loadData.pickup_zip,
                             availableDate: loadData.pickup_date,
                             equipmentType: loadData.equipment_type,
-                            capacity: loadData.weight,
+                            balance: loadData.balance,
                             ratePerMile: loadData.rate,
                             details: loadData.details,
+                            mobilePhone: loadData.mobilePhone,
                             contact: {
                                 company: loadData.user.companyName,
                                 name: loadData.user.contactName,
@@ -284,7 +289,8 @@ module.exports = {
                 destination,
                 pickupDate,
                 deliveryDate,
-                status
+                status,
+                type
             } = req.query;
 
             const whereConditions = {};
@@ -313,7 +319,14 @@ module.exports = {
 
             if (status) {
                 whereConditions.status = status;
+            }else{
+                whereConditions.status = 'ACTIVE';
             }
+
+            if (type) {
+                whereConditions.load_type = type;
+            }
+
 
             const loads = await Load.findAll({
                 where: whereConditions,
@@ -333,11 +346,12 @@ module.exports = {
                     'delivery_location',
                     'delivery_zip',
                     'delivery_date',
-                    'weight',
+                    'balance',
                     'cubic_feet',
                     'rate',
                     'equipment_type',
                     'details',
+                    'mobilePhone',
                     'created_at'
                 ]
             });
@@ -372,10 +386,11 @@ module.exports = {
                             destinationLocation: loadData.delivery_location,
                             pickupDate: loadData.pickup_date,
                             deliveryDate: loadData.delivery_date,
-                            weight: loadData.weight,
+                            balance: loadData.balance,
                             rate: loadData.rate,
                             equipmentType: loadData.equipment_type,
-                            details: loadData.details
+                            details: loadData.details,
+                            mobilePhone: loadData.mobilePhone
                         };
 
                     case 'TRUCK':
@@ -385,9 +400,162 @@ module.exports = {
                             originZip: loadData.pickup_zip,
                             pickupDate: loadData.pickup_date,
                             equipmentType: loadData.equipment_type,
-                            weight: loadData.weight,
+                            balance: loadData.balance,
                             rate: loadData.rate,
-                            details: loadData.details
+                            details: loadData.details,
+                            mobilePhone: loadData.mobilePhone
+                        };
+
+                    default:
+                        return baseData;
+                }
+            });
+
+            res.json({
+                status: 'success',
+                data: formattedLoads,
+                meta: {
+                    total: formattedLoads.length,
+                    userType: req.userData.userType,
+                    isSuperAdmin: req.userData.userType === 'SUPER_ADMIN',
+                    filters: {
+                        origin,
+                        destination,
+                        pickupDate,
+                        deliveryDate,
+                        status
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error('View loads error:', error);
+            res.status(500).json({
+                status: 'error',
+                message: 'Error viewing loads',
+                error: error.message
+            });
+        }
+    },
+
+    allLoads: async (req, res) => {
+        try {
+            const {
+                origin,
+                destination,
+                pickupDate,
+                deliveryDate,
+                status,
+                type
+            } = req.query;
+
+            const whereConditions = {};
+
+            // If not super admin, only show user's own load
+            whereConditions.user_id != req.userData.userId;
+            // Add filters if provided
+            if (origin) {
+                whereConditions.pickup_location = { [Op.like]: `%${origin}%` };
+            }
+
+            if (destination) {
+                whereConditions.delivery_location = { [Op.like]: `%${destination}%` };
+            }
+
+            if (pickupDate) {
+                whereConditions.pickup_date = new Date(pickupDate);
+            }
+
+            if (deliveryDate) {
+                whereConditions.delivery_date = new Date(deliveryDate);
+            }
+
+            if (type) {
+                whereConditions.load_type = type;
+            }
+
+            if (status) {
+                whereConditions.status = status;
+            }else{
+                whereConditions.status = 'ACTIVE';
+            }
+
+            const loads = await Load.findAll({
+                where: whereConditions,
+                include: [{
+                    model: User,
+                    as: 'user',
+                    attributes: ['id', 'companyName', 'contactName', 'phone', 'email', 'userType']
+                }],
+                order: [['created_at', 'DESC']],
+                attributes: [
+                    'id',
+                    'load_type',
+                    'status',
+                    'pickup_location',
+                    'pickup_zip',
+                    'pickup_date',
+                    'delivery_location',
+                    'delivery_zip',
+                    'delivery_date',
+                    'balance',
+                    'cubic_feet',
+                    'rate',
+                    'equipment_type',
+                    'details',
+                    'mobilePhone',
+                    'created_at'
+                ]
+            });
+
+            // Format the response
+            const formattedLoads = loads.map(load => {
+                const loadData = load.get({ plain: true });
+                const baseData = {
+                    id: loadData.id,
+                    jobNumber: `${loadData.load_type}-${loadData.id}`,
+                    type: loadData.load_type,
+                    cubicFeet: loadData.cubic_feet,
+                    status: loadData.status,
+                    createdAt: loadData.created_at,
+                    contact: {
+                        company: loadData.user.companyName,
+                        name: loadData.user.contactName,
+                        phone: loadData.user.phone,
+                        email: loadData.user.email,
+                        userType: loadData.user.userType
+                    }
+                };
+
+                switch (loadData.load_type) {
+                    case 'RFP':
+                    case 'RFD':
+                        return {
+                            ...baseData,
+                            originZip: loadData.pickup_zip,
+                            originLocation: loadData.pickup_location,
+                            destinationZip: loadData.delivery_zip,
+                            destinationLocation: loadData.delivery_location,
+                            pickupDate: loadData.pickup_date,
+                            deliveryDate: loadData.delivery_date,
+                            balance: loadData.balance,
+                            rate: loadData.rate,
+                            equipmentType: loadData.equipment_type,
+                            details: loadData.details,
+                            mobilePhone: loadData.mobilePhone
+                        };
+
+                    case 'TRUCK':
+                        return {
+                            ...baseData,
+                            originLocation: loadData.pickup_location,
+                            originZip: loadData.pickup_zip,
+                            pickupDate: loadData.pickup_date,
+                            equipmentType: loadData.equipment_type,
+                            balance: loadData.balance,
+                            rate: loadData.rate,
+                            details: loadData.details,
+                            mobilePhone: loadData.mobilePhone
                         };
 
                     default:

@@ -73,9 +73,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       field: 'delivery_date'
     },
-    weight: {
+    balance: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: false
+      allowNull: false,
+      defaultValue: 0.00
     },
     cubicFeet: {
       type: DataTypes.DECIMAL(10, 2),
@@ -105,6 +106,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: true,
       field: 'assigned_at'
+    },
+    mobilePhone: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: 'assigned_to',
+      validate: {
+        is: /^\+?[\d\s-()]+$/
+      }
     }
   }, {
     sequelize,

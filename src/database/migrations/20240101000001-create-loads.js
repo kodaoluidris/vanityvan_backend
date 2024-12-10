@@ -1,3 +1,5 @@
+'use strict';
+
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     await queryInterface.createTable('loads', {
@@ -59,7 +61,7 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: true
       },
-      weight: {
+      balance: {
         type: Sequelize.DECIMAL(10, 2),
         allowNull: true
       },
@@ -79,6 +81,10 @@ module.exports = {
         type: Sequelize.JSON,
         allowNull: false,
         defaultValue: '{}'
+      },
+      mobilePhone: { 
+        type: Sequelize.STRING,
+        allowNull: true
       },
       created_at: {
         type: Sequelize.DATE,
