@@ -38,7 +38,7 @@ module.exports = {
         allowNull: false
       },
       user_type: {
-        type: Sequelize.ENUM('BROKER', 'RFD_CARRIER', 'RFP_CARRIER'),
+        type: Sequelize.ENUM('BROKER', 'RFD_CARRIER', 'RFP_CARRIER','SUPER_ADMIN'),
         allowNull: false
       },
       dot_number: {
