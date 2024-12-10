@@ -10,6 +10,7 @@ router.get('/search', auth, LoadController.searchLoads);
 router.put('/:id', auth, validateLoad, LoadController.updateLoad);
 router.delete('/:id', auth, LoadController.deleteLoad);
 router.get('/view-loads', auth, LoadController.viewLoads);
+router.get('/all-loads', auth, LoadController.allLoads);
 router.post('/:loadId/request', auth, LoadController.requestLoad);
 router.get('/:loadId/requests', auth, LoadController.getLoadRequests);
 
