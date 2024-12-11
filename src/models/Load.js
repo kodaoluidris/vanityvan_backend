@@ -110,7 +110,7 @@ module.exports = (sequelize, DataTypes) => {
     mobilePhone: {
       type: DataTypes.STRING,
       allowNull: true,
-      field: 'assigned_to',
+      field: 'mobile_phone',
       validate: {
         is: /^\+?[\d\s-()]+$/
       }

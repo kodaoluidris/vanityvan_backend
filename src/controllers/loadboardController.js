@@ -4,6 +4,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const puppeteer = require('puppeteer');
+const { getLocationByZip } = require('../utils/locationService');
 
 exports.getAllLoadboardData = async (req, res) => {
     try {
@@ -197,128 +198,88 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                         const loadTable = frameData('table[border="2"]');
                         
                         if (loadTable.length) {
-                            // Process each row after the header
-                            loadTable.find('tr').each((index, element) => {
-                                if (index === 0) return; // Skip header row
+                            for (const element of loadTable.find('tr').toArray()) {
+                                if (frameData(element).index() === 0) continue; // Skip header
                                 
                                 try {
                                     const row = frameData(element);
                                     const cells = row.find('td');
                                     
-                                    // Only process rows that have data
                                     const jobNumber = cells.eq(0).text().trim();
-                                    if (!jobNumber) return;
+                                    if (!jobNumber) continue;
 
-                                    // Extract move dates
+                                    // Get dates
                                     const moveDates = cells.eq(2).text().trim().split('\n');
                                     const pickupDate = moveDates[0];
                                     const deliveryDate = moveDates[1] || moveDates[0];
 
-                                    // Extract origin location
-                                    const originText = cells.eq(5).text().trim().replace(/\s+/g, ' ');
-                                    const [originCity, originState] = originText.split(',').map(s => s.trim());
+                                    // Get ZIP codes
                                     const originZip = cells.eq(6).text().trim();
-
-                                    // Extract destination location
-                                    const destText = cells.eq(7).text().trim().replace(/\s+/g, ' ');
-                                    const [destCity, destState] = destText.split(',').map(s => s.trim());
                                     const destZip = cells.eq(8).text().trim();
 
-                                    // Extract cubic feet and weight
+                                    // Fetch location data using ZIP codes
+                                    const [originLocation, destLocation] = await Promise.all([
+                                        getLocationByZip(originZip),
+                                        getLocationByZip(destZip)
+                                    ]);
+
+                                    // Extract other data
                                     const cfText = cells.eq(9).text().trim();
                                     const cfMatch = cfText.match(/(\d+)\s*cf\s*\/\s*(\d+)\s*lbs/);
                                     const cubicFeet = cfMatch ? parseInt(cfMatch[1]) : null;
                                     const weight = cfMatch ? parseInt(cfMatch[2]) : null;
 
-                                    // Extract miles and estimate
                                     const miles = parseInt(cells.eq(10).text().trim()) || 0;
                                     const estimate = parseFloat(cells.eq(11).text().trim().replace('$', '').replace(',', '')) || 0;
 
-                                    brokerLoads.push({
-                                        jobNumber,
-                                        userId: broker.id,
-                                        status: 'PENDING',
-                                        loadType: 'BROKER_LOAD',
-                                        pickupDate,
-                                        deliveryDate,
-                                        originAddress: {
-                                            city: originCity,
-                                            state: originState,
-                                            zipCode: originZip,
-                                            country: 'USA'
-                                        },
-                                        destinationAddress: {
-                                            city: destCity,
-                                            state: destState,
-                                            zipCode: destZip,
-                                            country: 'USA'
-                                        },
-                                        cubicFeet,
-                                        weight,
-                                        distance: miles,
+                                    const dbLoadData = {
+                                        user_id: broker.id,
+                                        load_type: 'RFP',
+                                        status: 'ACTIVE',
+                                        pickup_location: originLocation.location, // Use formatted location
+                                        pickup_zip: originZip,
+                                        pickup_date: new Date(pickupDate),
+                                        delivery_location: destLocation.location, // Use formatted location
+                                        delivery_zip: destZip,
+                                        delivery_date: new Date(deliveryDate),
+                                        balance: estimate,
+                                        cubic_feet: cubicFeet,
                                         rate: estimate,
-                                        source: 'LOADBOARD',
-                                        sourceUrl: url,
-                                        mobilePhone: '561-201-7453' // Added from the header phone number
-                                    });
+                                        equipment_type: 'MOVING_TRUCK',
+                                        details: {
+                                            jobNumber,
+                                            weight,
+                                            source: 'LOADBOARD',
+                                            sourceUrl: url,
+                                            distance: miles,
+                                            coordinates: {
+                                                origin: originLocation.coordinates,
+                                                destination: destLocation.coordinates
+                                            }
+                                        },
+                                        mobile_phone: '561-201-7453'
+                                    };
 
-                                } catch (rowError) {
-                                    console.error('Error processing row:', rowError);
-                                }
-                            });
-
-                            // Save loads to database
-                            for (const loadData of brokerLoads) {
-                                try {
+                                    // Check for existing load
                                     const existingLoad = await Load.findOne({
                                         where: {
                                             user_id: broker.id,
                                             details: {
-                                                jobNumber: loadData.jobNumber
+                                                jobNumber: jobNumber
                                             }
                                         }
                                     });
 
                                     if (!existingLoad) {
-                                        // Convert data to match your schema
-                                        const dbLoadData = {
-                                            user_id: broker.id,
-                                            load_type: 'RFP', // Since these are broker loads
-                                            status: 'ACTIVE',
-                                            pickup_location: loadData.originAddress.city + ', ' + loadData.originAddress.state,
-                                            pickup_zip: loadData.originAddress.zipCode,
-                                            pickup_date: new Date(loadData.pickupDate),
-                                            delivery_location: loadData.destinationAddress.city + ', ' + loadData.destinationAddress.state,
-                                            delivery_zip: loadData.destinationAddress.zipCode,
-                                            delivery_date: new Date(loadData.deliveryDate),
-                                            balance: loadData.rate, // Using rate as balance
-                                            cubic_feet: loadData.cubicFeet,
-                                            rate: loadData.rate,
-                                            equipment_type: 'MOVING_TRUCK', // Or appropriate equipment type
-                                            details: {
-                                                jobNumber: loadData.jobNumber,
-                                                weight: loadData.weight,
-                                                source: loadData.source,
-                                                sourceUrl: loadData.sourceUrl,
-                                                distance: loadData.distance
-                                            },
-                                            mobile_phone: loadData.mobilePhone
-                                        };
-
                                         await Load.create(dbLoadData);
                                         totalLoadsSaved++;
                                     }
-                                } catch (saveError) {
-                                    console.error('Error saving load:', saveError, loadData);
+
+                                } catch (rowError) {
+                                    console.error('Error processing row:', rowError);
+                                    continue; // Skip this row and continue with next
                                 }
                             }
-
-                            scrapingSummary.push({
-                                brokerId: broker.id,
-                                companyName: broker.companyName,
-                                loadsFound: brokerLoads.length,
-                                url
-                            });
                         }
                     }
 
