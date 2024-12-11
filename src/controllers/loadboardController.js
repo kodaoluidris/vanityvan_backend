@@ -157,42 +157,60 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
 
         // Helper function to parse dates
         const parseCompoundDate = (dateStr) => {
-            if (!dateStr) return null;
+            console.log('\n=== parseCompoundDate ===');
+            console.log('Input dateStr:', dateStr);
             
-            // Split the compound date string into individual dates
-            // Match pattern: MM/DD/YYYYMM/DD/YYYY
+            if (!dateStr) {
+                console.log('Empty date string received');
+                return null;
+            }
+            
             const dates = dateStr.match(/(\d{2}\/\d{2}\/\d{4})/g);
+            console.log('Matched dates:', dates);
             
             if (!dates) {
-                console.error('Could not parse compound date:', dateStr);
+                console.log('No dates matched the pattern');
                 return null;
             }
 
-            return dates; // Returns array of date strings
+            return dates;
         };
 
         const parseDate = (dateStr) => {
-            if (!dateStr) return null;
+            console.log('\n=== parseDate ===');
+            console.log('Input dateStr:', dateStr);
+            
+            if (!dateStr) {
+                console.log('Empty date string received');
+                return null;
+            }
             
             // Expected format: MM/DD/YYYY
             const [month, day, year] = dateStr.split('/');
+            console.log('Split date parts:', { month, day, year });
             
             if (!month || !day || !year) {
-                console.error('Invalid date format:', dateStr);
+                console.log('Invalid date parts');
                 return null;
             }
 
-            // Create a new date object
-            const date = new Date(year, month - 1, day);
-            
-            // Validate the date
-            if (isNaN(date.getTime())) {
-                console.error('Invalid date:', dateStr);
+            try {
+                // Create date string in MySQL format
+                const mysqlDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')} 00:00:00`;
+                console.log('Formatted MySQL date:', mysqlDate);
+                
+                // Validate the date by trying to parse it
+                const testDate = new Date(mysqlDate);
+                if (isNaN(testDate.getTime())) {
+                    console.log('Invalid date created');
+                    return null;
+                }
+                
+                return mysqlDate;
+            } catch (error) {
+                console.error('Error formatting date:', error);
                 return null;
             }
-            
-            // Format date as YYYY-MM-DD HH:mm:ss
-            return date.toISOString().slice(0, 19).replace('T', ' ');
         };
 
         for (const broker of brokers) {
@@ -242,6 +260,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                 if (frameData(element).index() === 0) continue; // Skip header
                                 
                                 try {
+                                    console.log('\n=== Processing Row ===');
                                     const row = frameData(element);
                                     const cells = row.find('td');
                                     
@@ -249,18 +268,28 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                     if (!jobNumber) continue;
 
                                     // Get dates
-                                    const moveDates = cells.eq(2).text().trim().split('\n');
-                                    const pickupDateStr = moveDates[0];
-                                    const deliveryDateStr = moveDates[1] || moveDates[0];
-
-                                    // Parse the dates
+                                    const dateText = cells.eq(2).text().trim();
+                                    console.log('Original date text from cell:', dateText);
+                                    
+                                    const dates = parseCompoundDate(dateText);
+                                    console.log('Parsed compound dates:', dates);
+                                    
+                                    if (!dates || dates.length === 0) {
+                                        console.log('No valid dates found, skipping row');
+                                        return;
+                                    }
+                                    
+                                    const pickupDateStr = dates[0];
+                                    const deliveryDateStr = dates[1] || dates[0];
+                                    console.log('Selected date strings:', { pickup: pickupDateStr, delivery: deliveryDateStr });
+                                    
                                     const pickupDate = parseDate(pickupDateStr);
                                     const deliveryDate = parseDate(deliveryDateStr);
-
-                                    // Only create the load if we have valid dates
+                                    console.log('Final parsed dates:', { pickup: pickupDate, delivery: deliveryDate });
+                                    
                                     if (!pickupDate || !deliveryDate) {
-                                        console.error('Invalid dates:', { pickupDateStr, deliveryDateStr });
-                                        continue; // Skip this row
+                                        console.log('Invalid dates after parsing, skipping row');
+                                        return;
                                     }
 
                                     // Get ZIP codes
@@ -288,10 +317,10 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                         status: 'ACTIVE',
                                         pickupLocation: originLocation.location,
                                         pickupZip: originZip,
-                                        pickupDate: pickupDate,           // Use the parsed date
+                                        pickupDate: pickupDate,
                                         deliveryLocation: destLocation.location,
                                         deliveryZip: destZip,
-                                        deliveryDate: deliveryDate,       // Use the parsed date
+                                        deliveryDate: deliveryDate,
                                         balance: estimate,
                                         cubicFeet: cubicFeet,
                                         rate: estimate,
@@ -310,41 +339,33 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                         mobilePhone: '561-201-7453'
                                     };
 
-                                    // Add validation before creating
-                                    if (!dbLoadData.deliveryLocation) {
-                                        throw new Error('Delivery location is required');
-                                    }
+                                    console.log('\n=== Final Data Check ===');
+                                    console.log('pickupDate type:', typeof dbLoadData.pickupDate);
+                                    console.log('pickupDate value:', dbLoadData.pickupDate);
+                                    console.log('deliveryDate type:', typeof dbLoadData.deliveryDate);
+                                    console.log('deliveryDate value:', dbLoadData.deliveryDate);
 
-                                    // Debug log to verify dates
-                                    console.log('Parsed dates:', {
-                                        original: {
-                                            pickup: pickupDateStr,
-                                            delivery: deliveryDateStr
-                                        },
-                                        parsed: {
-                                            pickup: pickupDate,
-                                            delivery: deliveryDate
-                                        }
-                                    });
+                                    // Before creating the load, log the exact data being sent
+                                    console.log('\n=== Database Insert Data ===');
+                                    console.log(JSON.stringify(dbLoadData, null, 2));
 
-                                    // Check for existing load
-                                    const existingLoad = await Load.findOne({
-                                        where: {
-                                            userId: broker.id,
-                                            details: {
-                                                jobNumber: jobNumber
-                                            }
-                                        }
-                                    });
-
-                                    if (!existingLoad && pickupDate && deliveryDate) {
-                                        await Load.create(dbLoadData);
-                                        totalLoadsSaved++;
-                                    }
+                                    // Create the load
+                                    const createdLoad = await Load.create(dbLoadData);
+                                    console.log('\n=== Load Created Successfully ===');
+                                    console.log('Created Load ID:', createdLoad.id);
+                                    
+                                    totalLoadsSaved++;
 
                                 } catch (rowError) {
-                                    console.error('Error processing row:', rowError);
-                                    continue; // Skip this row and continue with next
+                                    console.error('\n=== Error Processing Row ===');
+                                    console.error('Error details:', {
+                                        message: rowError.message,
+                                        stack: rowError.stack,
+                                        sqlMessage: rowError.sqlMessage,
+                                        sql: rowError.sql,
+                                        parameters: rowError.parameters
+                                    });
+                                    throw rowError;
                                 }
                             }
                         }
