@@ -192,113 +192,107 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
               
                     if (frameResponse.status === 200) {
                         const frameData = cheerio.load(frameResponse.data);
-                        // Log the entire HTML for debugging
-                    console.log('Raw HTML:', frameResponse.data);
-
-                    // More specific table selection
-                    const tables = frameData('table').map((i, table) => {
-                        const $table = frameData(table);
-                        console.log(`Table ${i} structure:`, {
-                            rows: $table.find('tr').length,
-                            firstRowCells: $table.find('tr:first').find('td').length,
-                            firstCellText: $table.find('tr:first td:first').text().trim()
-                        });
-                        return table;
-                    }).get();
-                        console.log(tables, 'tables');
-                        // Find and process the loadboard table
-                        // frameData('table').each((tableIndex, table) => {
-
-                        //     const firstCell = frameData(table).find('tr:first-child td:first-child').text().trim();
-                        //     console.log(`Table ${tableIndex} first cell: "${firstCell}"`);
-                            
-                        //     if (firstCell.includes('Job No.')) {
-                        //         // console.log('Found loadboard table!');
+                        
+                        // Find the main table with the load data (the one with border=2)
+                        const loadTable = frameData('table[border="2"]');
+                        
+                        if (loadTable.length) {
+                            // Process each row after the header
+                            loadTable.find('tr').each((index, element) => {
+                                if (index === 0) return; // Skip header row
                                 
-                        //         frameData(table).find('tr').each((index, element) => {
-                        //             if (index === 0) return; // Skip header row
+                                try {
+                                    const row = frameData(element);
+                                    const cells = row.find('td');
                                     
-                        //             try {
-                        //                 const row = frameData(element);
-                        //                 const jobNumber = row.find('td:eq(0)').text().trim();
-                        //                 console.log(`Processing job: ${jobNumber}`);
+                                    // Only process rows that have data
+                                    const jobNumber = cells.eq(0).text().trim();
+                                    if (!jobNumber) return;
 
-                        //                 if (!jobNumber) return; // Skip empty rows
+                                    // Extract move dates
+                                    const moveDates = cells.eq(2).text().trim().split('\n');
+                                    const pickupDate = moveDates[0];
+                                    const deliveryDate = moveDates[1] || moveDates[0];
 
-                        //                 const moveDate = row.find('td:eq(2)').text().trim();
-                        //                 const originText = row.find('td:eq(5)').text().trim();
-                        //                 const [originCity, originState] = originText.split(',').map(s => s.trim());
-                        //                 const originZip = row.find('td:eq(6)').text().trim();
-                        //                 const destText = row.find('td:eq(7)').text().trim();
-                        //                 const [destCity, destState] = destText.split(',').map(s => s.trim());
-                        //                 const destZip = row.find('td:eq(8)').text().trim();
-                        //                 const cubicFeetText = row.find('td:eq(9)').text().trim();
-                        //                 const miles = row.find('td:eq(10)').text().trim();
-                        //                 const estimate = row.find('td:eq(11)').text().trim()
-                        //                     .replace('$', '').replace(',', '');
+                                    // Extract origin location
+                                    const originText = cells.eq(5).text().trim().replace(/\s+/g, ' ');
+                                    const [originCity, originState] = originText.split(',').map(s => s.trim());
+                                    const originZip = cells.eq(6).text().trim();
 
-                        //                 const cfMatch = cubicFeetText.match(/(\d+)\s*cf\s*\/\s*(\d+)\s*lbs/);
-                        //                 const cubicFeet = cfMatch ? parseInt(cfMatch[1]) : null;
-                        //                 const weight = cfMatch ? parseInt(cfMatch[2]) : null;
+                                    // Extract destination location
+                                    const destText = cells.eq(7).text().trim().replace(/\s+/g, ' ');
+                                    const [destCity, destState] = destText.split(',').map(s => s.trim());
+                                    const destZip = cells.eq(8).text().trim();
 
-                        //                 brokerLoads.push({
-                        //                     jobNumber,
-                        //                     userId: broker.id,
-                        //                     status: 'PENDING',
-                        //                     loadType: 'BROKER_LOAD',
-                        //                     pickupDate: moveDate.split('\n')[0],
-                        //                     deliveryDate: moveDate.split('\n')[1] || moveDate.split('\n')[0],
-                        //                     originAddress: {
-                        //                         city: originCity,
-                        //                         state: originState,
-                        //                         zipCode: originZip,
-                        //                         country: 'USA'
-                        //                     },
-                        //                     destinationAddress: {
-                        //                         city: destCity,
-                        //                         state: destState,
-                        //                         zipCode: destZip,
-                        //                         country: 'USA'
-                        //                     },
-                        //                     cubicFeet,
-                        //                     weight,
-                        //                     distance: parseInt(miles) || 0,
-                        //                     rate: parseFloat(estimate) || 0,
-                        //                     source: 'LOADBOARD',
-                        //                     sourceUrl: url
-                        //                 });
-                        //             } catch (rowError) {
-                        //                 console.error('Error processing row:', rowError);
-                        //             }
-                        //         });
-                        //     }
-                        // });
+                                    // Extract cubic feet and weight
+                                    const cfText = cells.eq(9).text().trim();
+                                    const cfMatch = cfText.match(/(\d+)\s*cf\s*\/\s*(\d+)\s*lbs/);
+                                    const cubicFeet = cfMatch ? parseInt(cfMatch[1]) : null;
+                                    const weight = cfMatch ? parseInt(cfMatch[2]) : null;
 
-                        // // Save loads to database
-                        // for (const loadData of brokerLoads) {
-                        //     try {
-                        //         const existingLoad = await Load.findOne({
-                        //             where: {
-                        //                 jobNumber: loadData.jobNumber,
-                        //                 userId: broker.id
-                        //             }
-                        //         });
+                                    // Extract miles and estimate
+                                    const miles = parseInt(cells.eq(10).text().trim()) || 0;
+                                    const estimate = parseFloat(cells.eq(11).text().trim().replace('$', '').replace(',', '')) || 0;
 
-                        //         if (!existingLoad) {
-                        //             await Load.create(loadData);
-                        //             totalLoadsSaved++;
-                        //         }
-                        //     } catch (saveError) {
-                        //         console.error('Error saving load:', saveError);
-                        //     }
-                        // }
+                                    brokerLoads.push({
+                                        jobNumber,
+                                        userId: broker.id,
+                                        status: 'PENDING',
+                                        loadType: 'BROKER_LOAD',
+                                        pickupDate,
+                                        deliveryDate,
+                                        originAddress: {
+                                            city: originCity,
+                                            state: originState,
+                                            zipCode: originZip,
+                                            country: 'USA'
+                                        },
+                                        destinationAddress: {
+                                            city: destCity,
+                                            state: destState,
+                                            zipCode: destZip,
+                                            country: 'USA'
+                                        },
+                                        cubicFeet,
+                                        weight,
+                                        distance: miles,
+                                        rate: estimate,
+                                        source: 'LOADBOARD',
+                                        sourceUrl: url,
+                                        mobilePhone: '561-201-7453' // Added from the header phone number
+                                    });
 
-                        // scrapingSummary.push({
-                        //     brokerId: broker.id,
-                        //     companyName: broker.companyName,
-                        //     loadsFound: brokerLoads.length,
-                        //     url
-                        // });
+                                } catch (rowError) {
+                                    console.error('Error processing row:', rowError);
+                                }
+                            });
+
+                            // Save loads to database
+                            for (const loadData of brokerLoads) {
+                                try {
+                                    const existingLoad = await Load.findOne({
+                                        where: {
+                                            jobNumber: loadData.jobNumber,
+                                            userId: broker.id
+                                        }
+                                    });
+
+                                    if (!existingLoad) {
+                                        await Load.create(loadData);
+                                        totalLoadsSaved++;
+                                    }
+                                } catch (saveError) {
+                                    console.error('Error saving load:', saveError);
+                                }
+                            }
+
+                            scrapingSummary.push({
+                                brokerId: broker.id,
+                                companyName: broker.companyName,
+                                loadsFound: brokerLoads.length,
+                                url
+                            });
+                        }
                     }
 
                 } catch (error) {
