@@ -156,11 +156,23 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
         const scrapingSummary = [];
 
         // Helper function to parse dates
-        const parseDate = (dateStr) => {
+        const parseCompoundDate = (dateStr) => {
             if (!dateStr) return null;
             
-            // Remove any extra whitespace
-            dateStr = dateStr.trim();
+            // Split the compound date string into individual dates
+            // Match pattern: MM/DD/YYYYMM/DD/YYYY
+            const dates = dateStr.match(/(\d{2}\/\d{2}\/\d{4})/g);
+            
+            if (!dates) {
+                console.error('Could not parse compound date:', dateStr);
+                return null;
+            }
+
+            return dates; // Returns array of date strings
+        };
+
+        const parseDate = (dateStr) => {
+            if (!dateStr) return null;
             
             // Expected format: MM/DD/YYYY
             const [month, day, year] = dateStr.split('/');
@@ -171,7 +183,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
             }
 
             // Create a new date object
-            const date = new Date(year, month - 1, day); // month is 0-based in JS
+            const date = new Date(year, month - 1, day);
             
             // Validate the date
             if (isNaN(date.getTime())) {
