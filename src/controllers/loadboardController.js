@@ -1,4 +1,4 @@
-const { User } = require('../models');
+const { User, Load } = require('../models');
 const { Op } = require('sequelize');
 const axios = require('axios');
 const cheerio = require('cheerio');
@@ -272,17 +272,44 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                 try {
                                     const existingLoad = await Load.findOne({
                                         where: {
-                                            jobNumber: loadData.jobNumber,
-                                            userId: broker.id
+                                            user_id: broker.id,
+                                            details: {
+                                                jobNumber: loadData.jobNumber
+                                            }
                                         }
                                     });
 
                                     if (!existingLoad) {
-                                        await Load.create(loadData);
+                                        // Convert data to match your schema
+                                        const dbLoadData = {
+                                            user_id: broker.id,
+                                            load_type: 'RFP', // Since these are broker loads
+                                            status: 'ACTIVE',
+                                            pickup_location: loadData.originAddress.city + ', ' + loadData.originAddress.state,
+                                            pickup_zip: loadData.originAddress.zipCode,
+                                            pickup_date: new Date(loadData.pickupDate),
+                                            delivery_location: loadData.destinationAddress.city + ', ' + loadData.destinationAddress.state,
+                                            delivery_zip: loadData.destinationAddress.zipCode,
+                                            delivery_date: new Date(loadData.deliveryDate),
+                                            balance: loadData.rate, // Using rate as balance
+                                            cubic_feet: loadData.cubicFeet,
+                                            rate: loadData.rate,
+                                            equipment_type: 'MOVING_TRUCK', // Or appropriate equipment type
+                                            details: {
+                                                jobNumber: loadData.jobNumber,
+                                                weight: loadData.weight,
+                                                source: loadData.source,
+                                                sourceUrl: loadData.sourceUrl,
+                                                distance: loadData.distance
+                                            },
+                                            mobile_phone: loadData.mobilePhone
+                                        };
+
+                                        await Load.create(dbLoadData);
                                         totalLoadsSaved++;
                                     }
                                 } catch (saveError) {
-                                    console.error('Error saving load:', saveError);
+                                    console.error('Error saving load:', saveError, loadData);
                                 }
                             }
 
