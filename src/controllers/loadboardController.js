@@ -233,19 +233,19 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                     const estimate = parseFloat(cells.eq(11).text().trim().replace('$', '').replace(',', '')) || 0;
 
                                     const dbLoadData = {
-                                        user_id: broker.id,
-                                        load_type: 'RFP',
+                                        userId: broker.id,
+                                        loadType: 'RFP',
                                         status: 'ACTIVE',
-                                        pickup_location: originLocation.location, // Use formatted location
-                                        pickup_zip: originZip,
-                                        pickup_date: new Date(pickupDate),
-                                        delivery_location: destLocation.location, // Use formatted location
-                                        delivery_zip: destZip,
-                                        delivery_date: new Date(deliveryDate),
+                                        pickupLocation: originLocation.location,
+                                        pickupZip: originZip,
+                                        pickupDate: new Date(pickupDate),
+                                        deliveryLocation: destLocation.location,
+                                        deliveryZip: destZip,
+                                        deliveryDate: new Date(deliveryDate),
                                         balance: estimate,
-                                        cubic_feet: cubicFeet,
+                                        cubicFeet: cubicFeet,
                                         rate: estimate,
-                                        equipment_type: 'MOVING_TRUCK',
+                                        equipmentType: 'MOVING_TRUCK',
                                         details: {
                                             jobNumber,
                                             weight,
@@ -257,13 +257,17 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                                 destination: destLocation.coordinates
                                             }
                                         },
-                                        mobile_phone: '561-201-7453'
+                                        mobilePhone: '561-201-7453'
                                     };
+
+                                    if (!dbLoadData.deliveryLocation) {
+                                        throw new Error('Delivery location is required');
+                                    }
 
                                     // Check for existing load
                                     const existingLoad = await Load.findOne({
                                         where: {
-                                            user_id: broker.id,
+                                            userId: broker.id,
                                             details: {
                                                 jobNumber: jobNumber
                                             }
