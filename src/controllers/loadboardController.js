@@ -155,6 +155,33 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
         let totalLoadsSaved = 0;
         const scrapingSummary = [];
 
+        // Helper function to parse dates
+        const parseDate = (dateStr) => {
+            if (!dateStr) return null;
+            
+            // Remove any extra whitespace
+            dateStr = dateStr.trim();
+            
+            // Expected format: MM/DD/YYYY
+            const [month, day, year] = dateStr.split('/');
+            
+            if (!month || !day || !year) {
+                console.error('Invalid date format:', dateStr);
+                return null;
+            }
+
+            // Create a new date object
+            const date = new Date(year, month - 1, day); // month is 0-based in JS
+            
+            // Validate the date
+            if (isNaN(date.getTime())) {
+                console.error('Invalid date:', dateStr);
+                return null;
+            }
+            
+            return date;
+        };
+
         for (const broker of brokers) {
             console.log(`Processing broker ${broker.id} with company ${broker.companyName}`);
             
@@ -210,8 +237,18 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
 
                                     // Get dates
                                     const moveDates = cells.eq(2).text().trim().split('\n');
-                                    const pickupDate = moveDates[0];
-                                    const deliveryDate = moveDates[1] || moveDates[0];
+                                    const pickupDateStr = moveDates[0];
+                                    const deliveryDateStr = moveDates[1] || moveDates[0];
+
+                                    // Parse the dates
+                                    const pickupDate = parseDate(pickupDateStr);
+                                    const deliveryDate = parseDate(deliveryDateStr);
+
+                                    // Only create the load if we have valid dates
+                                    if (!pickupDate || !deliveryDate) {
+                                        console.error('Invalid dates:', { pickupDateStr, deliveryDateStr });
+                                        continue; // Skip this row
+                                    }
 
                                     // Get ZIP codes
                                     const originZip = cells.eq(6).text().trim();
@@ -238,10 +275,10 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                         status: 'ACTIVE',
                                         pickupLocation: originLocation.location,
                                         pickupZip: originZip,
-                                        pickupDate: new Date(pickupDate),
+                                        pickupDate: pickupDate,           // Use the parsed date
                                         deliveryLocation: destLocation.location,
                                         deliveryZip: destZip,
-                                        deliveryDate: new Date(deliveryDate),
+                                        deliveryDate: deliveryDate,       // Use the parsed date
                                         balance: estimate,
                                         cubicFeet: cubicFeet,
                                         rate: estimate,
@@ -260,9 +297,22 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                         mobilePhone: '561-201-7453'
                                     };
 
+                                    // Add validation before creating
                                     if (!dbLoadData.deliveryLocation) {
                                         throw new Error('Delivery location is required');
                                     }
+
+                                    // Debug log to verify dates
+                                    console.log('Parsed dates:', {
+                                        original: {
+                                            pickup: pickupDateStr,
+                                            delivery: deliveryDateStr
+                                        },
+                                        parsed: {
+                                            pickup: pickupDate,
+                                            delivery: deliveryDate
+                                        }
+                                    });
 
                                     // Check for existing load
                                     const existingLoad = await Load.findOne({
@@ -274,7 +324,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                         }
                                     });
 
-                                    if (!existingLoad) {
+                                    if (!existingLoad && pickupDate && deliveryDate) {
                                         await Load.create(dbLoadData);
                                         totalLoadsSaved++;
                                     }
