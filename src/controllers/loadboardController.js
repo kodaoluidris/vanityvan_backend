@@ -191,7 +191,8 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                 return null;
             }
             
-            return date;
+            // Format date as YYYY-MM-DD HH:mm:ss
+            return date.toISOString().slice(0, 19).replace('T', ' ');
         };
 
         for (const broker of brokers) {
