@@ -8,7 +8,7 @@ const userRoutes = require('./users');
 const settingsRoutes = require('./settings');
 const superAdminRoutes = require('./superAdmin');
 const loadBoardRoutes = require('./loadboard');
-
+const notificationRoutes = require('./notificationRoutes');
 // Health check route
 router.get('/health', (req, res) => {
   res.json({ status: 'OK' });
@@ -24,6 +24,7 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/admin', superAdminRoutes);
 router.use('/loadboard', loadBoardRoutes);
+router.use('/notifications', notificationRoutes);
 
 
 module.exports = router; 

@@ -126,12 +126,300 @@ exports.getAllLoadboardData = async (req, res) => {
     }
 }; 
 
-
 exports.scrapeAndSaveLoadboardData = async (req, res) => {
+    try {
+        const broker = await User.findOne({
+            where: {
+                id: req.userData.userId,
+                loadBoardUrls: {
+                    [Op.ne]: []
+                }
+            },
+            attributes: ['id', 'companyName', 'loadBoardUrls']
+        });
+
+        
+
+        const axiosInstance = axios.create({
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5'
+            },
+            timeout: 30000,
+            maxRedirects: 5,
+            validateStatus: status => status < 400
+        });
+
+        let totalLoadsSaved = 0;
+        const scrapingSummary = [];
+
+        // Helper function to parse dates
+        const parseCompoundDate = (dateStr) => {
+            console.log('\n=== parseCompoundDate ===');
+            console.log('Input dateStr:', dateStr);
+            
+            if (!dateStr) {
+                console.log('Empty date string received');
+                return null;
+            }
+            
+            const dates = dateStr.match(/(\d{2}\/\d{2}\/\d{4})/g);
+            console.log('Matched dates:', dates);
+            
+            if (!dates) {
+                console.log('No dates matched the pattern');
+                return null;
+            }
+
+            return dates;
+        };
+
+        const parseDate = (dateStr) => {
+            console.log('\n=== parseDate ===');
+            console.log('Input dateStr:', dateStr);
+            
+            if (!dateStr) {
+                console.log('Empty date string received');
+                return null;
+            }
+            
+            // Expected format: MM/DD/YYYY
+            const [month, day, year] = dateStr.split('/');
+            console.log('Split date parts:', { month, day, year });
+            
+            if (!month || !day || !year) {
+                console.log('Invalid date parts');
+                return null;
+            }
+
+            try {
+                // Create date string in MySQL format
+                const mysqlDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')} 00:00:00`;
+                console.log('Formatted MySQL date:', mysqlDate);
+                
+                // Validate the date by trying to parse it
+                const testDate = new Date(mysqlDate);
+                if (isNaN(testDate.getTime())) {
+                    console.log('Invalid date created');
+                    return null;
+                }
+                
+                return mysqlDate;
+            } catch (error) {
+                console.error('Error formatting date:', error);
+                return null;
+            }
+        };
+
+
+        if(broker){
+            for (const url of broker.loadBoardUrls) {
+                try {
+                    // Initialize brokerLoads array at the start of each URL processing
+                    const brokerLoads = [];
+    
+                    // Get the main page
+                    const response = await axiosInstance.get(url);
+                    const $ = cheerio.load(response.data);
+                    
+                    // Extract the frame URL
+                    const frameSrc = $('frame[name="BODY"]').attr('src');
+                    if (!frameSrc) {
+                        console.log('No frame found with name "BODY"');
+                        continue;
+                    }
+    
+                    // Construct frame URL
+                    const frameUrl = frameSrc.startsWith('http') 
+                        ? frameSrc 
+                        : frameSrc.startsWith('/') 
+                            ? `${new URL(url).origin}${frameSrc}`
+                            : `${new URL(url).origin}/${frameSrc}`;
+    
+                    console.log('Frame URL:', frameUrl);
+                    // Get frame content with cookies
+                    const frameResponse = await axiosInstance.get(frameUrl, {
+                        headers: {
+                            ...axiosInstance.defaults.headers,
+                            'Referer': url,
+                            'Cookie': response.headers['set-cookie']?.join('; '),
+                        }
+                    });
+                
+                    if (frameResponse.status === 200) {
+                        const frameData = cheerio.load(frameResponse.data);
+                        
+                        // Find the main table with the load data (the one with border=2)
+                        const loadTable = frameData('table[border="2"]');
+                        
+                        if (loadTable.length) {
+                            for (const element of loadTable.find('tr').toArray()) {
+                                if (frameData(element).index() === 0) continue; // Skip header
+                                
+                                try {
+                                    console.log('\n=== Processing Row ===');
+                                    const row = frameData(element);
+                                    const cells = row.find('td');
+                                    
+                                    const jobNumber = cells.eq(0).text().trim();
+                                    if (!jobNumber) continue;
+    
+                                    // Get dates
+                                    const dateText = cells.eq(2).text().trim();
+                                    console.log('Original date text from cell:', dateText);
+                                    
+                                    const dates = parseCompoundDate(dateText);
+                                    console.log('Parsed compound dates:', dates);
+                                    
+                                    if (!dates || dates.length === 0) {
+                                        console.log('No valid dates found, skipping row');
+                                        return;
+                                    }
+                                    
+                                    const pickupDateStr = dates[0];
+                                    const deliveryDateStr = dates[1] || dates[0];
+                                    console.log('Selected date strings:', { pickup: pickupDateStr, delivery: deliveryDateStr });
+                                    
+                                    const pickupDate = parseDate(pickupDateStr);
+                                    const deliveryDate = parseDate(deliveryDateStr);
+                                    console.log('Final parsed dates:', { pickup: pickupDate, delivery: deliveryDate });
+                                    
+                                    if (!pickupDate || !deliveryDate) {
+                                        console.log('Invalid dates after parsing, skipping row');
+                                        return;
+                                    }
+    
+                                    // Get ZIP codes
+                                    const originZip = cells.eq(6).text().trim();
+                                    const destZip = cells.eq(8).text().trim();
+    
+                                    // Fetch location data using ZIP codes
+                                    const [originLocation, destLocation] = await Promise.all([
+                                        getLocationByZip(originZip),
+                                        getLocationByZip(destZip)
+                                    ]);
+    
+                                    // Extract other data
+                                    const cfText = cells.eq(9).text().trim();
+                                    const cfMatch = cfText.match(/(\d+)\s*cf\s*\/\s*(\d+)\s*lbs/);
+                                    const cubicFeet = cfMatch ? parseInt(cfMatch[1]) : null;
+                                    const weight = cfMatch ? parseInt(cfMatch[2]) : null;
+    
+                                    const miles = parseInt(cells.eq(10).text().trim()) || 0;
+                                    const estimate = parseFloat(cells.eq(11).text().trim().replace('$', '').replace(',', '')) || 0;
+                                    
+                                    switch(broker.userType){
+                                        case 'BROKER':
+                                            loadType = 'RFP';
+                                            break;
+                                        case 'RFP_CARRIER':
+                                            loadType = 'RFD';
+                                            break;
+                                        case 'RFD_CARRIER':
+                                            loadType = 'TRUCK';
+                                            break;
+                                        default:
+                                            loadType='RFP'
+                                    }
+
+                                    const dbLoadData = {
+                                        userId: broker.id,
+                                        loadType: loadType,
+                                        status: 'ACTIVE',
+                                        pickupLocation: originLocation.location,
+                                        pickupZip: originZip,
+                                        pickupDate: pickupDate,
+                                        deliveryLocation: destLocation.location,
+                                        deliveryZip: destZip,
+                                        deliveryDate: deliveryDate,
+                                        balance: estimate,
+                                        cubicFeet: cubicFeet,
+                                        rate: estimate,
+                                        equipmentType: 'SYNCED',
+                                        details: {
+                                            jobNumber,
+                                            weight,
+                                            source: 'LOADBOARD',
+                                            sourceUrl: url,
+                                            distance: miles,
+                                            coordinates: {
+                                                origin: originLocation.coordinates,
+                                                destination: destLocation.coordinates
+                                            }
+                                        },
+                                        mobilePhone: '561-201-7453'
+                                    };
+    
+                                    console.log('\n=== Final Data Check ===');
+                                    console.log('pickupDate type:', typeof dbLoadData.pickupDate);
+                                    console.log('pickupDate value:', dbLoadData.pickupDate);
+                                    console.log('deliveryDate type:', typeof dbLoadData.deliveryDate);
+                                    console.log('deliveryDate value:', dbLoadData.deliveryDate);
+    
+                                    // Before creating the load, log the exact data being sent
+                                    console.log('\n=== Database Insert Data ===');
+                                    console.log(JSON.stringify(dbLoadData, null, 2));
+    
+                                    // Create the load
+                                    const createdLoad = await Load.create(dbLoadData);
+                                    console.log('\n=== Load Created Successfully ===');
+                                    console.log('Created Load ID:', createdLoad.id);
+                                    
+                                    totalLoadsSaved++;
+    
+                                } catch (rowError) {
+                                    console.error('\n=== Error Processing Row ===');
+                                    console.error('Error details:', {
+                                        message: rowError.message,
+                                        stack: rowError.stack,
+                                        sqlMessage: rowError.sqlMessage,
+                                        sql: rowError.sql,
+                                        parameters: rowError.parameters
+                                    });
+                                    throw rowError;
+                                }
+                            }
+                        }
+                    }
+    
+                } catch (error) {
+                    console.error(`Error processing URL ${url} for broker ${broker.id}:`, error);
+                    scrapingSummary.push({
+                        brokerId: broker.id,
+                        companyName: broker.companyName,
+                        error: error.message,
+                        url
+                    });
+                }
+            }
+        }
+
+        return res.json({
+            status: 'success',
+            message: `Successfully saved ${totalLoadsSaved} new loads`,
+            summary: {
+                brokersProcessed: broker.loadBoardUrls.length,
+                totalLoadsSaved,
+                details: scrapingSummary
+            }
+        });
+
+    } catch (error) {
+        console.error('Loadboard scraping error:', error);
+        return res.status(500).json({
+            status: 'error',
+            message: 'Error scraping and saving loadboard data',
+            error: error.message
+        });
+    }
+}; 
+
+
+exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
     try {
         const brokers = await User.findAll({
             where: {
-                userType: 'BROKER',
                 loadBoardUrls: {
                     [Op.ne]: []
                 }
@@ -311,9 +599,23 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                     const miles = parseInt(cells.eq(10).text().trim()) || 0;
                                     const estimate = parseFloat(cells.eq(11).text().trim().replace('$', '').replace(',', '')) || 0;
 
+                                    switch(broker.userType){
+                                        case 'BROKER':
+                                            loadType = 'RFP';
+                                            break;
+                                        case 'RFP_CARRIER':
+                                            loadType = 'RFD';
+                                            break;
+                                        case 'RFD_CARRIER':
+                                            loadType = 'TRUCK';
+                                            break;
+                                        default:
+                                            loadType='RFP'
+                                    }
+
                                     const dbLoadData = {
                                         userId: broker.id,
-                                        loadType: 'RFP',
+                                        loadType: loadType,
                                         status: 'ACTIVE',
                                         pickupLocation: originLocation.location,
                                         pickupZip: originZip,
@@ -324,7 +626,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                         balance: estimate,
                                         cubicFeet: cubicFeet,
                                         rate: estimate,
-                                        equipmentType: 'MOVING_TRUCK',
+                                        equipmentType: 'SYNCED',
                                         details: {
                                             jobNumber,
                                             weight,
@@ -401,7 +703,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
             error: error.message
         });
     }
-}; 
+};
 
 
 async function scrapeLoadboard(url) {

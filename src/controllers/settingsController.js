@@ -3,7 +3,6 @@ const { User } = require('../models');
 exports.getSettings = async (req, res) => {
     try {
         const user = await User.findByPk(req.userData.userId);
-        console.log(user, "USER")
         if (!user) {
             return res.status(404).json({
                 status: 'error',

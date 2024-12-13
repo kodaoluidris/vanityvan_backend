@@ -94,7 +94,7 @@ exports.uploadProfilePhoto = async (req, res) => {
 
         // Get host from request object
         const host = `${req.protocol}://${req.get('host')}`;
-        console.log(host, "host")
+
         const photoUrl = `${host}/api/uploads/profile-photos/${processedFileName}`;
 
         // Update user's photo in database

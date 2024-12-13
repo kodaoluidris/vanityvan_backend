@@ -1,111 +1,110 @@
 const { Notification, User } = require('../models');
-const logger = require('../utils/logger');
-const WebSocket = require('ws');
+const { Op } = require('sequelize');
 
 class NotificationService {
-  static wss = null;
+  async createNotification(data) {
+    return await Notification.create(data);
+  }
 
-  static initializeWebSocket(server) {
-    this.wss = new WebSocket.Server({ server });
-    
-    this.wss.on('connection', (ws) => {
-      ws.on('message', (message) => {
-        try {
-          const data = JSON.parse(message);
-          if (data.type === 'auth') {
-            ws.userId = data.userId;
-          }
-        } catch (error) {
-          logger.error('WebSocket message error:', error);
-        }
+  async getUserNotifications(userId, page = 1, limit = 10) {
+    try {
+      const offset = (page - 1) * limit;
+      
+      // Get total count for pagination
+      const totalCount = await Notification.count({
+        where: { userId }
       });
+
+      // Get paginated notifications
+      const notifications = await Notification.findAll({
+        where: { userId },
+        order: [['createdAt', 'DESC']],
+        limit: limit,
+        offset: offset,
+        include: [
+          {
+            model: User,
+            as: 'user',
+            attributes: ['id', 'firstName', 'lastName', 'companyName']
+          }
+        ]
+      });
+
+      // Calculate pagination details
+      const totalPages = Math.ceil(totalCount / limit);
+
+      return {
+        notifications,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems: totalCount,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1
+        }
+      };
+    } catch (error) {
+      console.error('Error in getUserNotifications:', error);
+      throw error;
+    }
+  }
+
+  async getUnreadCount(userId) {
+    return await Notification.count({
+      where: {
+        userId,
+        isRead: false
+      }
     });
   }
 
-  static async create(notificationData, transaction = null) {
-    try {
-      const notification = await Notification.create({
-        userId: notificationData.userId,
-        type: notificationData.type,
-        referenceId: notificationData.referenceId,
-        content: notificationData.content
-      }, { transaction });
+  async markAsRead(notificationId, userId) {
+    const notification = await Notification.findOne({
+      where: {
+        id: notificationId,
+        userId
+      }
+    });
 
-      // Send real-time notification if user is connected
-      this.sendRealTimeNotification(
-        notificationData.userId,
-        notification
-      );
-
-      return notification;
-    } catch (error) {
-      logger.error('Create notification error:', error);
-      throw error;
+    if (!notification) {
+      throw new Error('Notification not found');
     }
+
+    return await notification.update({
+      isRead: true,
+      readAt: new Date()
+    });
   }
 
-  static sendRealTimeNotification(userId, notification) {
-    if (this.wss) {
-      this.wss.clients.forEach((client) => {
-        if (client.userId === userId && client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
-            type: 'notification',
-            data: notification
-          }));
+  async markAllAsRead(userId) {
+    return await Notification.update(
+      {
+        isRead: true,
+        readAt: new Date()
+      },
+      {
+        where: {
+          userId,
+          isRead: false
         }
-      });
-    }
-  }
-
-  static async getUserNotifications(userId, options = {}) {
-    try {
-      const whereClause = { userId };
-      
-      if (!options.includeRead) {
-        whereClause.isRead = false;
       }
-
-      const notifications = await Notification.findAll({
-        where: whereClause,
-        order: [['createdAt', 'DESC']],
-        limit: options.limit || 50
-      });
-
-      return notifications;
-    } catch (error) {
-      logger.error('Get notifications error:', error);
-      throw error;
-    }
+    );
   }
 
-  static async markAsRead(notificationId, userId) {
-    try {
-      const notification = await Notification.findOne({
-        where: { id: notificationId, userId }
-      });
-
-      if (notification) {
-        await notification.update({ isRead: true });
-      }
-
-      return notification;
-    } catch (error) {
-      logger.error('Mark notification as read error:', error);
-      throw error;
-    }
-  }
-
-  static async markAllAsRead(userId) {
-    try {
-      await Notification.update(
-        { isRead: true },
-        { where: { userId, isRead: false } }
-      );
-    } catch (error) {
-      logger.error('Mark all notifications as read error:', error);
-      throw error;
-    }
+  // Helper method to create load request notification
+  async createLoadRequestNotification(loadId, requesterId, brokerId, loadTitle) {
+    const requester = await User.findByPk(requesterId);
+    
+    return this.createNotification({
+      userId: brokerId,
+      type: 'LOAD_REQUEST',
+      title: 'New Load Request',
+      message: `${requester.companyName} has requested your load: ${loadTitle}`,
+      referenceId: loadId,
+      referenceType: 'LOAD'
+    });
   }
 }
 
-module.exports = NotificationService; 
+module.exports = new NotificationService(); 
