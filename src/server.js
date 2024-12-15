@@ -9,22 +9,6 @@ const path = require('path');
 
 const app = express();
 
-// Set the correct path to the fbuild directory
-const buildPath = path.join(__dirname, '../fbuild'); // Correct path to the fbuild directory
-
-// Serve static files from the fbuild directory
-app.use(express.static(buildPath));
-
-// Handle requests to the root (index.html)
-app.get("*", function(req, res) {
-  res.sendFile(path.join(buildPath, 'index.html'), function(err) {
-    if (err) {
-      res.status(500).send(err);
-    }
-  });
-});
-
-
 // Security Middleware
 app.use(helmet());
 app.use(cors({
@@ -43,8 +27,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api', routes);
 app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
 
-const PORT = process.env.PORT || 7000;
-app.listen(PORT, '0.0.0.0', () => {
+const PORT = process.env.PORT || 9000;
+app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
