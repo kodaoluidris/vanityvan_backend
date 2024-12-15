@@ -4,6 +4,7 @@ const AuthController = require('../controllers/authController');
 const { validateRegistration, validateLogin, validateProfileUpdate } = require('../middleware/validate');
 const auth = require('../middleware/auth');
 
+router.get('/', AuthController.test);
 router.post('/register', validateRegistration, AuthController.register);
 router.post('/login', validateLogin, AuthController.login);
 router.post('/refresh-token', auth, AuthController.refreshToken);

@@ -5,6 +5,21 @@ const { User } = require('../models');
 const jwt = require('jsonwebtoken');
 
 class AuthController {
+  static async test(req, res, next) {
+    try {
+      res.status(201).json({
+        status: 'success',
+        data: {
+          user: [
+            {data:"this is just to test the endpoint"}
+          ]
+        }
+      });
+    } catch (error) {
+      logger.error('Registration error:', error);
+      next(error);
+    }
+  }
   static async register(req, res, next) {
     try {
       const {
