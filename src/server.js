@@ -10,11 +10,11 @@ const path = require('path');
 const app = express();
 
 const _dirname = path.dirname("");
-const buildPath = path.join(_dirname, "../vanityvan/build")
+const buildPath = path.join(_dirname, "../build")
 app.use(express.static(buildPath));
 app.get("/", function(req, res){
   res.sendFile(
-    path.join(__dirname, '/vanityvan/build/index.html'), function(err){
+    path.join(__dirname, '/build/index.html'), function(err){
       if(err){
         res.status(500).send(err)
       }
