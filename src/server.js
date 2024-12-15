@@ -9,19 +9,21 @@ const path = require('path');
 
 const app = express();
 
-const _dirname = path.dirname("");
-const buildPath = path.join(_dirname, "fbuild")
-app.use(express.static(buildPath));
-app.get("*", function(req, res){
-  res.sendFile(
-    path.join(__dirname, 'fbuild', 'index.html'), function(err){
-      if(err){
-        res.status(500).send(err)
-      }
-    }
+// Set the correct path to the fbuild directory
+const buildPath = path.join(__dirname, '../fbuild'); // Correct path to the fbuild directory
 
-  )
-})
+// Serve static files from the fbuild directory
+app.use(express.static(buildPath));
+
+// Handle requests to the root (index.html)
+app.get("*", function(req, res) {
+  res.sendFile(path.join(buildPath, 'index.html'), function(err) {
+    if (err) {
+      res.status(500).send(err);
+    }
+  });
+});
+
 
 // Security Middleware
 app.use(helmet());
