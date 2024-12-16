@@ -82,7 +82,7 @@ module.exports = {
         allowNull: false,
         defaultValue: '{}'
       },
-      mobilePhone: { 
+      mobile_phone: { 
         type: Sequelize.STRING,
         allowNull: true
       },
