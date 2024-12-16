@@ -1,9 +1,9 @@
 const { Model, DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
-class Request extends Model {}
+class LoadRequest extends Model {}
 
-Request.init({
+LoadRequest.init({
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -54,27 +54,27 @@ Request.init({
   }
 }, {
   sequelize,
-  modelName: 'Request',
-  tableName: 'requests',
+  modelName: 'LoadRequest',
+  tableName: 'load_requests',
   timestamps: true,
   underscored: true
 });
 
-Request.associate = (models) => {
-  Request.belongsTo(models.User, {
+LoadRequest.associate = (models) => {
+  LoadRequest.belongsTo(models.User, {
     foreignKey: 'requester_id',
     as: 'requester'
   });
   
-  Request.belongsTo(models.User, {
+  LoadRequest.belongsTo(models.User, {
     foreignKey: 'owner_id',
     as: 'owner'
   });
   
-  Request.belongsTo(models.Load, {
+  LoadRequest.belongsTo(models.Load, {
     foreignKey: 'load_id',
     as: 'load'
   });
 };
 
-module.exports = Request; 
+module.exports = LoadRequest; 

@@ -2,7 +2,7 @@ const loadService = require('../services/loadService');
 const { Load, User } = require('../models');
 const { Op } = require('sequelize');
 const NotificationService = require('../services/notificationService');
-const Request = require('../models/Request');
+const Request = require('../models/LoadRequest');
 
 // Export the controller methods directly
 module.exports = {

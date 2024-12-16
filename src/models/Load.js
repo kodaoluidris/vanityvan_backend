@@ -8,7 +8,7 @@ module.exports = (sequelize, DataTypes) => {
         as: 'user'
       });
 
-      Load.hasMany(models.Request, {
+      Load.hasMany(models.LoadRequest, {
         foreignKey: 'loadId',
         as: 'requests'
       });

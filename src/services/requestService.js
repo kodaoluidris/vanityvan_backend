@@ -1,4 +1,4 @@
-const { Request, Load, User, Notification, sequelize } = require('../models');
+const { LoadRequest, Load, User, Notification, sequelize } = require('../models');
 const { ValidationError } = require('../utils/errors');
 const logger = require('../utils/logger');
 const NotificationService = require('./notificationService');
@@ -20,7 +20,7 @@ class RequestService {
       }
 
       // Check for existing request
-      const existingRequest = await Request.findOne({
+      const existingRequest = await LoadRequest.findOne({
         where: {
           loadId,
           requesterId,
@@ -33,7 +33,7 @@ class RequestService {
       }
 
       // Create request
-      const request = await Request.create({
+      const request = await LoadRequest.create({
         loadId,
         requesterId,
         ownerId: load.userId,
@@ -68,7 +68,7 @@ class RequestService {
         ? { ownerId: userId }
         : { requesterId: userId };
 
-      const requests = await Request.findAll({
+      const requests = await LoadRequest.findAll({
         where: whereClause,
         include: [
           {
@@ -100,7 +100,7 @@ class RequestService {
     const transaction = await sequelize.transaction();
 
     try {
-      const request = await Request.findOne({
+      const request = await LoadRequest.findOne({
         where: { 
           id: requestId,
           ownerId: userId
