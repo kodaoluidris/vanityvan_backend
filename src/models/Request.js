@@ -55,7 +55,7 @@ Request.init({
 }, {
   sequelize,
   modelName: 'Request',
-  tableName: 'load_requests',
+  tableName: 'requests',
   timestamps: true,
   underscored: true
 });
