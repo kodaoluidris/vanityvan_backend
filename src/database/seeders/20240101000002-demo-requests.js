@@ -92,10 +92,10 @@ module.exports = {
     ];
 
     // Insert all requests
-    return queryInterface.bulkInsert('requests', demoRequests);
+    return queryInterface.bulkInsert('load_requests', demoRequests);
   },
 
   down: async (queryInterface, Sequelize) => {
-    return queryInterface.bulkDelete('requests', null, {});
+    return queryInterface.bulkDelete('load_requests', null, {});
   }
 }; 
