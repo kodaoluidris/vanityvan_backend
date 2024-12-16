@@ -1,4 +1,4 @@
-const { Load, Request, User, Truck } = require('../models');
+const { Load, LoadRequest, User, Truck } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 
@@ -29,7 +29,7 @@ module.exports = {
             });
 
             // Get Accepted Requests Count
-            const acceptedRequestsCount = await Request.count({
+            const acceptedRequestsCount = await LoadRequest.count({
                 where: {
                     ownerId: userId,
                     status: 'ACCEPTED'
@@ -37,7 +37,7 @@ module.exports = {
             });
 
             // Get Recent Requests with status counts
-            const recentRequests = await Request.findAll({
+            const recentRequests = await LoadRequest.findAll({
                 where: {
                     ownerId: userId,
                     createdAt: {
@@ -54,7 +54,7 @@ module.exports = {
             });
 
             // Get status counts for all requests
-            const requestStatusCounts = await Request.findAll({
+            const requestStatusCounts = await LoadRequest.findAll({
                 where: { ownerId: userId },
                 attributes: [
                     'status',
@@ -72,7 +72,7 @@ module.exports = {
                     }
                 },
                 include: [{
-                    model: Request,
+                    model: LoadRequest,
                     as: 'requests',
                     required: false,
                     attributes: ['id', 'status']
