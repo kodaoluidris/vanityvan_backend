@@ -9,14 +9,17 @@ const path = require('path');
 
 const app = express();
 
+const corsOptions = {
+  origin: 'https://mymovingmaps.com',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'Content-Type', 'Accept', 'Authorization'],
+  credentials: true,
+};
+
 // Security Middleware
 app.use(helmet());
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'https://mymovingmaps.com',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: true
-}));
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Logging Middleware
 app.use(morgan('combined'));
