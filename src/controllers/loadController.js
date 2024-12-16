@@ -1,7 +1,6 @@
 const loadService = require('../services/loadService');
 const { Load, User } = require('../models');
 const { Op } = require('sequelize');
-const LoadRequest = require('../models/LoadRequest');
 const NotificationService = require('../services/notificationService');
 const Request = require('../models/Request');
 
