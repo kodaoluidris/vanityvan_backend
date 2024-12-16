@@ -1,6 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const routes = require('./routes');
@@ -9,17 +8,8 @@ const path = require('path');
 
 const app = express();
 
-const corsOptions = {
-  origin: 'https://mymovingmaps.com',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Origin', 'Content-Type', 'Accept', 'Authorization'],
-  credentials: true,
-};
-
 // Security Middleware
 app.use(helmet());
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 
 // Logging Middleware
 app.use(morgan('combined'));
