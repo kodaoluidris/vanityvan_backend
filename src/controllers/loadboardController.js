@@ -138,8 +138,6 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
             attributes: ['id', 'companyName', 'loadBoardUrls']
         });
 
-        
-
         const axiosInstance = axios.create({
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -154,72 +152,25 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
         let totalLoadsSaved = 0;
         const scrapingSummary = [];
 
-        // Helper function to parse dates
         const parseCompoundDate = (dateStr) => {
-            console.log('\n=== parseCompoundDate ===');
-            console.log('Input dateStr:', dateStr);
-            
-            if (!dateStr) {
-                console.log('Empty date string received');
-                return null;
-            }
-            
+            if (!dateStr) return null;
             const dates = dateStr.match(/(\d{2}\/\d{2}\/\d{4})/g);
-            console.log('Matched dates:', dates);
-            
-            if (!dates) {
-                console.log('No dates matched the pattern');
-                return null;
-            }
-
             return dates;
         };
 
         const parseDate = (dateStr) => {
-            console.log('\n=== parseDate ===');
-            console.log('Input dateStr:', dateStr);
-            
-            if (!dateStr) {
-                console.log('Empty date string received');
-                return null;
-            }
-            
-            // Expected format: MM/DD/YYYY
+            if (!dateStr) return null;
             const [month, day, year] = dateStr.split('/');
-            console.log('Split date parts:', { month, day, year });
-            
-            if (!month || !day || !year) {
-                console.log('Invalid date parts');
-                return null;
-            }
-
-            try {
-                // Create date string in MySQL format
-                const mysqlDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')} 00:00:00`;
-                console.log('Formatted MySQL date:', mysqlDate);
-                
-                // Validate the date by trying to parse it
-                const testDate = new Date(mysqlDate);
-                if (isNaN(testDate.getTime())) {
-                    console.log('Invalid date created');
-                    return null;
-                }
-                
-                return mysqlDate;
-            } catch (error) {
-                console.error('Error formatting date:', error);
-                return null;
-            }
+            if (!month || !day || !year) return null;
+            const mysqlDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')} 00:00:00`;
+            const testDate = new Date(mysqlDate);
+            return isNaN(testDate.getTime()) ? null : mysqlDate;
         };
 
-
-        if(broker){
+        if (broker) {
             for (const url of broker.loadBoardUrls) {
                 try {
-                    // Initialize brokerLoads array at the start of each URL processing
                     const brokerLoads = [];
-    
-                    // Get the main page
                     const response = await axiosInstance.get(url);
                     const $ = cheerio.load(response.data);
                     
@@ -229,14 +180,14 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                         console.log('No frame found with name "BODY"');
                         continue;
                     }
-    
+
                     // Construct frame URL
                     const frameUrl = frameSrc.startsWith('http') 
                         ? frameSrc 
                         : frameSrc.startsWith('/') 
                             ? `${new URL(url).origin}${frameSrc}`
                             : `${new URL(url).origin}/${frameSrc}`;
-    
+
                     console.log('Frame URL:', frameUrl);
                     // Get frame content with cookies
                     const frameResponse = await axiosInstance.get(frameUrl, {
@@ -246,10 +197,14 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                             'Cookie': response.headers['set-cookie']?.join('; '),
                         }
                     });
-                
+
                     if (frameResponse.status === 200) {
                         const frameData = cheerio.load(frameResponse.data);
-                        
+
+                        // Extract phone number from the table with border="0"
+                        const phoneNumber = frameData('table[border="0"] tr:nth-child(2) td b font').text().trim();
+                        console.log('Extracted Phone Number:', phoneNumber);
+
                         // Find the main table with the load data (the one with border=2)
                         const loadTable = frameData('table[border="2"]');
                         
@@ -264,7 +219,16 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                     
                                     const jobNumber = cells.eq(0).text().trim();
                                     if (!jobNumber) continue;
-    
+
+                                    // Check if the job number already exists
+                                    const existingLoad = await Load.findOne({
+                                        where: { jobNumber }
+                                    });
+                                    if (existingLoad) {
+                                        console.log(`Job number ${jobNumber} already exists, skipping.`);
+                                        continue;
+                                    }
+
                                     // Get dates
                                     const dateText = cells.eq(2).text().trim();
                                     console.log('Original date text from cell:', dateText);
@@ -289,23 +253,23 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                         console.log('Invalid dates after parsing, skipping row');
                                         return;
                                     }
-    
+
                                     // Get ZIP codes
                                     const originZip = cells.eq(6).text().trim();
                                     const destZip = cells.eq(8).text().trim();
-    
+
                                     // Fetch location data using ZIP codes
                                     const [originLocation, destLocation] = await Promise.all([
                                         getLocationByZip(originZip),
                                         getLocationByZip(destZip)
                                     ]);
-    
+
                                     // Extract other data
                                     const cfText = cells.eq(9).text().trim();
                                     const cfMatch = cfText.match(/(\d+)\s*cf\s*\/\s*(\d+)\s*lbs/);
                                     const cubicFeet = cfMatch ? parseInt(cfMatch[1]) : null;
                                     const weight = cfMatch ? parseInt(cfMatch[2]) : null;
-    
+
                                     const miles = parseInt(cells.eq(10).text().trim()) || 0;
                                     const estimate = parseFloat(cells.eq(11).text().trim().replace('$', '').replace(',', '')) || 0;
                                     
@@ -337,8 +301,8 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                         cubicFeet: cubicFeet,
                                         rate: estimate,
                                         equipmentType: 'SYNCED',
+                                        jobNumber: jobNumber, // Add job number here
                                         details: {
-                                            jobNumber,
                                             weight,
                                             source: 'LOADBOARD',
                                             sourceUrl: url,
@@ -348,26 +312,26 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                                 destination: destLocation.coordinates
                                             }
                                         },
-                                        mobilePhone: '561-201-7453'
+                                        mobilePhone: phoneNumber // Use extracted phone number
                                     };
-    
+
                                     console.log('\n=== Final Data Check ===');
                                     console.log('pickupDate type:', typeof dbLoadData.pickupDate);
                                     console.log('pickupDate value:', dbLoadData.pickupDate);
                                     console.log('deliveryDate type:', typeof dbLoadData.deliveryDate);
                                     console.log('deliveryDate value:', dbLoadData.deliveryDate);
-    
+
                                     // Before creating the load, log the exact data being sent
                                     console.log('\n=== Database Insert Data ===');
                                     console.log(JSON.stringify(dbLoadData, null, 2));
-    
+
                                     // Create the load
                                     const createdLoad = await Load.create(dbLoadData);
                                     console.log('\n=== Load Created Successfully ===');
                                     console.log('Created Load ID:', createdLoad.id);
                                     
                                     totalLoadsSaved++;
-    
+
                                 } catch (rowError) {
                                     console.error('\n=== Error Processing Row ===');
                                     console.error('Error details:', {
@@ -382,7 +346,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                             }
                         }
                     }
-    
+
                 } catch (error) {
                     console.error(`Error processing URL ${url} for broker ${broker.id}:`, error);
                     scrapingSummary.push({
