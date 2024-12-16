@@ -54,7 +54,7 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false
         }
     }, {
-        tableName: 'load_requests',
+        tableName: 'requests',
         timestamps: true,
         underscored: true
     });
