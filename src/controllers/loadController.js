@@ -19,7 +19,7 @@ module.exports = {
                 status: 'success',
                 data: {
                     id: load.id,
-                    jobNumber: `${load.loadType}-${load.id}`,
+                    jobNumber: load.job_number ?? `${load.loadType}-${load.id}`,
                     type: load.loadType,
                     status: load.status,
                     pickup: {
@@ -34,7 +34,7 @@ module.exports = {
                     rate: load.rate,
                     equipmentType: load.equipmentType,
                     details: load.details,
-                    mobilePhone: load.mobilePhone,
+                    mobilePhone: load.mobile_phone,
                     createdAt: load.createdAt
                 }
             });
@@ -158,6 +158,7 @@ module.exports = {
                 order: [['created_at', 'DESC']],
                 attributes: [
                     'id',
+                    'job_number',
                     'load_type',
                     'status',
                     'pickup_location',
@@ -187,14 +188,14 @@ module.exports = {
                 const loadData = load.get({ plain: true });
                 
                 // Ensure we're not getting duplicate data
-                console.log('Processing load ID:', loadData.id);
+                // console.log('Processing load ID:', loadData.id);
                 
                 // Format based on load type
                 switch (loadData.load_type) {  // Make sure this matches your database column name
                     case 'RFP':
                         return {
                             id: loadData.id,
-                            jobNumber: `RFP-${loadData.id}`,
+                            jobNumber: loadData.job_number ?? `RFP-${loadData.id}`,
                             type: 'RFP',
                             originZip: loadData.pickup_zip,
                             originLocation: loadData.pickup_location,
@@ -206,10 +207,10 @@ module.exports = {
                             rate: loadData.rate,
                             equipmentType: loadData.equipment_type,
                             details: loadData.details,
-                            mobilePhone: loadData.mobilePhone,
+                            mobilePhone: loadData.mobile_phone,
                             contact: {
                                 company: loadData.user.companyName,
-                                name: loadData.user.contactName,
+                                name: loadData.mobile_phone ?? loadData.user.contactName,
                                 phone: loadData.user.phone,
                                 email: loadData.user.email
                             }
@@ -218,7 +219,7 @@ module.exports = {
                     case 'RFD':
                         return {
                             id: loadData.id,
-                            jobNumber: `RFD-${loadData.id}`,
+                            jobNumber: loadData.job_number ?? `RFD-${loadData.id}`,
                             type: 'RFD',
                             originZip: loadData.pickup_zip,
                             originLocation: loadData.pickup_location,
@@ -230,11 +231,11 @@ module.exports = {
                             rate: loadData.rate,
                             equipmentType: loadData.equipment_type,
                             details: loadData.details,
-                            mobilePhone: loadData.mobilePhone,
+                            mobilePhone: loadData.mobile_phone,
                             contact: {
                                 company: loadData.user.companyName,
                                 name: loadData.user.contactName,
-                                phone: loadData.user.phone,
+                                phone: loadData.mobile_phone ?? loadData.user.phone,
                                 email: loadData.user.email
                             }
                         };
@@ -242,7 +243,7 @@ module.exports = {
                     case 'TRUCK':
                         return {
                             id: loadData.id,
-                            jobNumber: `TRUCK-${loadData.id}`,
+                            jobNumber: loadData.job_number ?? `TRUCK-${loadData.id}`,
                             type: 'TRUCK',
                             location: loadData.pickup_location,
                             locationZip: loadData.pickup_zip,
@@ -251,11 +252,11 @@ module.exports = {
                             balance: loadData.balance,
                             ratePerMile: loadData.rate,
                             details: loadData.details,
-                            mobilePhone: loadData.mobilePhone,
+                            mobilePhone: loadData.mobile_phone,
                             contact: {
                                 company: loadData.user.companyName,
                                 name: loadData.user.contactName,
-                                phone: loadData.user.phone,
+                                phone: loadData.mobile_phone ?? loadData.user.phone,
                                 email: loadData.user.email
                             }
                         };
@@ -337,6 +338,7 @@ module.exports = {
                 order: [['created_at', 'DESC']],
                 attributes: [
                     'id',
+                    'job_number',
                     'load_type',
                     'status',
                     'pickup_location',
@@ -350,7 +352,7 @@ module.exports = {
                     'rate',
                     'equipment_type',
                     'details',
-                    'mobilePhone',
+                    'mobile_phone',
                     'created_at'
                 ]
             });
@@ -360,15 +362,16 @@ module.exports = {
                 const loadData = load.get({ plain: true });
                 const baseData = {
                     id: loadData.id,
-                    jobNumber: `${loadData.load_type}-${loadData.id}`,
+                    jobNumber: loadData.job_number ?? `${loadData.load_type}-${loadData.id}`,
                     type: loadData.load_type,
                     cubicFeet: loadData.cubic_feet,
+                    mobilePhone: loadData.mobile_phone,
                     status: loadData.status,
                     createdAt: loadData.created_at,
                     contact: {
                         company: loadData.user.companyName,
                         name: loadData.user.contactName,
-                        phone: loadData.user.phone,
+                        phone: loadData.mobile_phone ?? loadData.user.phone,
                         email: loadData.user.email,
                         userType: loadData.user.userType
                     }
@@ -389,7 +392,7 @@ module.exports = {
                             rate: loadData.rate,
                             equipmentType: loadData.equipment_type,
                             details: loadData.details,
-                            mobilePhone: loadData.mobilePhone
+                            mobilePhone: loadData.mobile_phone
                         };
 
                     case 'TRUCK':
@@ -402,7 +405,7 @@ module.exports = {
                             balance: loadData.balance,
                             rate: loadData.rate,
                             details: loadData.details,
-                            mobilePhone: loadData.mobilePhone
+                            mobilePhone: loadData.mobile_phone
                         };
 
                     default:
@@ -502,7 +505,8 @@ module.exports = {
                     'rate',
                     'equipment_type',
                     'details',
-                    'mobilePhone',
+                    'mobile_phone',
+                    'job_number',
                     'created_at'
                 ]
             });
@@ -512,15 +516,16 @@ module.exports = {
                 const loadData = load.get({ plain: true });
                 const baseData = {
                     id: loadData.id,
-                    jobNumber: `${loadData.load_type}-${loadData.id}`,
+                    jobNumber: loadData.job_number ?? `${loadData.load_type}-${loadData.id}`,
                     type: loadData.load_type,
                     cubicFeet: loadData.cubic_feet,
                     status: loadData.status,
                     createdAt: loadData.created_at,
+                    mobilePhone:loadData.mobile_phone,
                     contact: {
                         company: loadData.user.companyName,
                         name: loadData.user.contactName,
-                        phone: loadData.user.phone,
+                        phone: loadData.mobile_phone ?? loadData.user.phone,
                         email: loadData.user.email,
                         userType: loadData.user.userType
                     }
@@ -541,7 +546,7 @@ module.exports = {
                             rate: loadData.rate,
                             equipmentType: loadData.equipment_type,
                             details: loadData.details,
-                            mobilePhone: loadData.mobilePhone
+                            mobilePhone: loadData.mobile_phone
                         };
 
                     case 'TRUCK':
@@ -554,7 +559,7 @@ module.exports = {
                             balance: loadData.balance,
                             rate: loadData.rate,
                             details: loadData.details,
-                            mobilePhone: loadData.mobilePhone
+                            mobilePhone: loadData.mobile_phone
                         };
 
                     default:
