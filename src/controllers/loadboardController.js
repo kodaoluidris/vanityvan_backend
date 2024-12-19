@@ -317,9 +317,11 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
 
                                     console.log('\n=== Final Data Check ===');
                                     console.log('pickupDate type:', typeof dbLoadData.pickupDate);
+                                    console.log('pickupDate type:', typeof dbLoadData.pickupDate);
                                     console.log('pickupDate value:', dbLoadData.pickupDate);
                                     console.log('deliveryDate type:', typeof dbLoadData.deliveryDate);
                                     console.log('deliveryDate value:', dbLoadData.deliveryDate);
+                                    console.log('deliphoneNumberveryDate value:', dbLoadData.phoneNumber);
 
                                     // Before creating the load, log the exact data being sent
                                     console.log('\n=== Database Insert Data ===');
