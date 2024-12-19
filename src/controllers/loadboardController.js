@@ -312,7 +312,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                                 destination: destLocation.coordinates
                                             }
                                         },
-                                        mobilePhone: phoneNumber // Use extracted phone number
+                                        mobilePhone: phoneNumber??NULL // Use extracted phone number
                                     };
 
                                     console.log('\n=== Final Data Check ===');
@@ -479,6 +479,7 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
                     
                     // Extract the frame URL
                     const frameSrc = $('frame[name="BODY"]').attr('src');
+
                     if (!frameSrc) {
                         console.log('No frame found with name "BODY"');
                         continue;
