@@ -210,8 +210,8 @@ module.exports = {
                             mobilePhone: loadData.mobile_phone,
                             contact: {
                                 company: loadData.user.companyName,
-                                name: loadData.mobile_phone ?? loadData.user.contactName,
-                                phone: loadData.user.phone,
+                                name:  loadData.user.contactName,
+                                phone: loadData.mobile_phone ?? loadData.user.phone,
                                 email: loadData.user.email
                             }
                         };

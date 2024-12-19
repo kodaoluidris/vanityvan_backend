@@ -24,7 +24,7 @@ exports.validateRegistration = [
     .normalizeEmail(),
   
   body('password')
-    .isLength({ min: 6 })
+    .notEmpty()
     .withMessage('Password must be at least 6 characters long'),
   
   body('userType')
