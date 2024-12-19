@@ -111,9 +111,6 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: true,
       field: 'mobile_phone',
-      validate: {
-        is: /^\+?[\d\s-()]+$/
-      }
     },
     jobNumber: {
       type: DataTypes.STRING,
