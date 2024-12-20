@@ -89,18 +89,34 @@ class AuthController {
       if (error.name === 'SequelizeUniqueConstraintError') {
         return res.status(400).json({
           status: 'error',
-          message: 'Username or email already exists'
+          message: 'Registration failed',
+          errors: error.errors.map(err => ({
+            field: err.path,
+            message: err.message
+          }))
         });
       }
 
       if (error.name === 'SequelizeValidationError') {
         return res.status(400).json({
           status: 'error',
-          message: error.message
+          message: 'Validation failed',
+          errors: error.errors.map(err => ({
+            field: err.path,
+            message: err.message
+          }))
         });
       }
 
-      next(error);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Registration failed',
+        error: process.env.NODE_ENV === 'development' ? {
+          name: error.name,
+          message: error.message,
+          details: error.errors || error.original || error
+        } : 'An unexpected error occurred'
+      });
     }
   }
 

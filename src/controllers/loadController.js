@@ -1,8 +1,7 @@
 const loadService = require('../services/loadService');
-const { Load, User } = require('../models');
+const { Load, User, LoadRequest } = require('../models');
 const { Op } = require('sequelize');
 const NotificationService = require('../services/notificationService');
-const Request = require('../models/LoadRequest');
 
 // Export the controller methods directly
 module.exports = {
@@ -624,7 +623,7 @@ module.exports = {
             }
 
             // 3. Check for existing request - using raw: true
-            const existingRequest = await Request.findOne({
+            const existingRequest = await LoadRequest.findOne({
                 where: {
                     loadId: loadId,
                     requesterId: req.userData.userId,
@@ -641,7 +640,7 @@ module.exports = {
             }
 
             // 4. Create request and get plain object
-            const newRequest = await Request.create({
+            const newRequest = await LoadRequest.create({
                 loadId: parseInt(loadId),
                 requesterId: req.userData.userId,
                 ownerId: load.userId,
@@ -704,7 +703,7 @@ module.exports = {
             }
 
             // Get all requests for this load with requester details
-            const requests = await Request.findAll({
+            const requests = await LoadRequest.findAll({
                 where: {
                     loadId: loadId
                 },
@@ -724,7 +723,7 @@ module.exports = {
                 raw: true,
                 nest: true // This helps format the nested objects nicely
             });
-
+            console.log(requests, "REQUESTSSSS")
             // Format the response to match frontend requirements
             const formattedRequests = requests.map(request => ({
                 id: request.id,
