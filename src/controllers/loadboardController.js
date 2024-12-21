@@ -168,6 +168,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
         };
 
         if (broker) {
+            console.log(broker.loadBoardUrls, broker.loadBoardUrls.length, "broker.loadBoardUrls")
             for (const url of broker.loadBoardUrls) {
                 try {
                     const brokerLoads = [];
@@ -207,8 +208,9 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
 
                         // Find the main table with the load data (the one with border=2)
                         const loadTable = frameData('table[border="2"]');
-                        
+                        console.log('load table:', loadTable);
                         if (loadTable.length) {
+                            console.log('load table length:', loadTable.length);
                             for (const element of loadTable.find('tr').toArray()) {
                                 if (frameData(element).index() === 0) continue; // Skip header
                                 
