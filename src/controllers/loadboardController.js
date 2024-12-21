@@ -166,7 +166,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
             const testDate = new Date(mysqlDate);
             return isNaN(testDate.getTime()) ? null : mysqlDate;
         };
-
+        var j_num = [];
         if (broker) {
             console.log(broker.loadBoardUrls, broker.loadBoardUrls.length, "broker.loadBoardUrls")
             for (const url of broker.loadBoardUrls) {
@@ -221,7 +221,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                     
                                     const jobNumber = cells.eq(0).text().trim();
                                     if (!jobNumber) continue;
-
+                                    else j_num.push(jobNumber)
                                     // Check if the job number already exists
                                     const existingLoad = await Load.findOne({
                                         where: { jobNumber }
@@ -333,6 +333,23 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                     const createdLoad = await Load.create(dbLoadData);
                                     console.log('\n=== Load Created Successfully ===');
                                     console.log('Created Load ID:', createdLoad.id);
+
+                                    // update loads that are in the db and not coming again from sync
+                                    await Load.update(
+                                        { status: 'COMPLETED' },
+                                        {
+                                            where: {
+                                                [Op.and]: [
+                                                    {
+                                                        job_number: {
+                                                            [Op.notIn]: j_num,
+                                                            [Op.not]: null
+                                                        }
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    );
                                     
                                     totalLoadsSaved++;
 
