@@ -397,6 +397,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
             { status: 'COMPLETED' },
             {
                 where: {
+                    id: req.userData.userId,
                     [Op.and]: [
                         {
                             job_number: {
