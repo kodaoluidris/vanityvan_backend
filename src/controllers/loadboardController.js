@@ -235,9 +235,9 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
 
                         // Find the main table with the load data (the one with border=2)
                         const loadTable = frameData('table[border="2"]');
-                        console.log('load table:', loadTable);
+                        // console.log('load table:', loadTable);
                         if (loadTable.length) {
-                            console.log('load table length:', loadTable.length);
+                            // console.log('load table length:', loadTable.length);
                             for (const element of loadTable.find('tr').toArray()) {
                                 if (frameData(element).index() === 0) continue; // Skip header
                                 
@@ -360,23 +360,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                     const createdLoad = await Load.create(dbLoadData);
                                     console.log('\n=== Load Created Successfully ===');
                                     console.log('Created Load ID:', createdLoad.id);
-                                    console.log('j_num:', j_num);
-                                    // update loads that are in the db and not coming again from sync
-                                    await Load.update(
-                                        { status: 'COMPLETED' },
-                                        {
-                                            where: {
-                                                [Op.and]: [
-                                                    {
-                                                        job_number: {
-                                                            [Op.notIn]: j_num,
-                                                            [Op.not]: null
-                                                        }
-                                                    }
-                                                ]
-                                            }
-                                        }
-                                    );
+                                    
                                     
                                     totalLoadsSaved++;
 
@@ -406,6 +390,24 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                 }
             }
         }
+
+        console.log('j_num:', j_num);
+        // update loads that are in the db and not coming again from sync
+        await Load.update(
+            { status: 'COMPLETED' },
+            {
+                where: {
+                    [Op.and]: [
+                        {
+                            job_number: {
+                                [Op.notIn]: j_num,
+                                [Op.not]: null
+                            }
+                        }
+                    ]
+                }
+            }
+        );
 
         return res.json({
             status: 'success',
