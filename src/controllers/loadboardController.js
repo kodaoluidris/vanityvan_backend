@@ -199,6 +199,33 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                         }
                     });
 
+                    // Add verification and retry logic here
+                    let retryCount = 0;
+                    let frameData;
+                    while (retryCount < 3) {
+                        frameData = cheerio.load(frameResponse.data);
+                        const loadTable = frameData('table[border="2"]');
+                        
+                        if (loadTable.length > 0) {
+                            break; // Content loaded successfully
+                        }
+                        
+                        console.log(`Content not fully loaded, attempt ${retryCount + 1} of 3`);
+                        await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+                        retryCount++;
+                        
+                        if (retryCount < 3) {
+                            const newResponse = await axiosInstance.get(frameUrl, {
+                                headers: {
+                                    ...axiosInstance.defaults.headers,
+                                    'Referer': url,
+                                    'Cookie': response.headers['set-cookie']?.join('; '),
+                                }
+                            });
+                            frameResponse.data = newResponse.data;
+                        }
+                    }
+
                     if (frameResponse.status === 200) {
                         const frameData = cheerio.load(frameResponse.data);
 
@@ -523,6 +550,33 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
                         }
                     });
               
+                    // Add verification and retry logic here
+                    let retryCount = 0;
+                    let frameData;
+                    while (retryCount < 3) {
+                        frameData = cheerio.load(frameResponse.data);
+                        const loadTable = frameData('table[border="2"]');
+                        
+                        if (loadTable.length > 0) {
+                            break; // Content loaded successfully
+                        }
+                        
+                        console.log(`Content not fully loaded, attempt ${retryCount + 1} of 3`);
+                        await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+                        retryCount++;
+                        
+                        if (retryCount < 3) {
+                            const newResponse = await axiosInstance.get(frameUrl, {
+                                headers: {
+                                    ...axiosInstance.defaults.headers,
+                                    'Referer': url,
+                                    'Cookie': response.headers['set-cookie']?.join('; '),
+                                }
+                            });
+                            frameResponse.data = newResponse.data;
+                        }
+                    }
+
                     if (frameResponse.status === 200) {
                         const frameData = cheerio.load(frameResponse.data);
                         
