@@ -396,7 +396,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
         const loadToUpdate = await Load.findAll(
             {
                 where: {
-                    id: req.userData.userId,
+                    user_id: req.userData.userId,
                     [Op.and]: [
                         {
                             job_number: {
