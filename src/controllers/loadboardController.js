@@ -408,7 +408,11 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                 }
             }
         );
+            // Update each load individually to preserve existing data
         console.log('loadToUpdate:', loadToUpdate);
+        for (const load of loadToUpdate) {
+            await load.update({ status: 'COMPLETED' });
+        }
 
         return res.json({
             status: 'success',
