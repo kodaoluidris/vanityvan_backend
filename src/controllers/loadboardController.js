@@ -393,8 +393,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
 
         console.log('j_num:', j_num);
         // update loads that are in the db and not coming again from sync
-        await Load.update(
-            { status: 'COMPLETED' },
+        const loadToUpdate = await Load.findAll(
             {
                 where: {
                     id: req.userData.userId,
@@ -409,6 +408,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                 }
             }
         );
+        console.log('loadToUpdate:', loadToUpdate);
 
         return res.json({
             status: 'success',
