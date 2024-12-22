@@ -360,7 +360,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                     const createdLoad = await Load.create(dbLoadData);
                                     console.log('\n=== Load Created Successfully ===');
                                     console.log('Created Load ID:', createdLoad.id);
-
+                                    console.log('j_num:', j_num);
                                     // update loads that are in the db and not coming again from sync
                                     await Load.update(
                                         { status: 'COMPLETED' },
