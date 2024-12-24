@@ -247,7 +247,6 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                             console.log('\n=== Table Format ===');
                             console.log('Headers:', headers);
                             console.log('Is New Format:', isNewFormat);
-                            console.log('Processing URL:', url);
 
                             for (const element of loadTable.find('tr').toArray()) {
                                 if (frameData(element).index() === 0) continue; // Skip header
@@ -301,82 +300,43 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                     console.log('Row cells length:', cells.length);
                                     console.log('Row cells content:', cells.map(i => frameData(cells[i]).text().trim()));
 
-                                    try {
-                                        if (isNewFormat) {
-                                            const fromText = cells.eq(5).text().trim();
-                                            const toText = cells.eq(6).text().trim();
-                                            
-                                            console.log('New Format Raw Location Data:', {
-                                                fromText,
-                                                toText
-                                            });
+                                    if (isNewFormat) {
+                                        // Parse location with ZIP code included in the cell
+                                        const fromText = cells.eq(5).text().trim();
+                                        const toText = cells.eq(7).text().trim();
+                                        
+                                        // Extract ZIP from location string
+                                        originZip = fromText.match(/\d{5}$/)?.[0] || '';
+                                        destZip = toText.match(/\d{5}$/)?.[0] || '';
 
-                                            // Extract ZIP codes using a more robust regex
-                                            originZip = fromText.match(/\b\d{5}\b/)?.[0];
-                                            destZip = toText.match(/\b\d{5}\b/)?.[0];
+                                        // Get location data
+                                        [originLocation, destLocation] = await Promise.all([
+                                            getLocationByZip(originZip),
+                                            getLocationByZip(destZip)
+                                        ]);
 
-                                            console.log('Extracted ZIPs from New Format:', {
-                                                originZip,
-                                                destZip,
-                                                fromText,
-                                                toText
-                                            });
-                                        } else {
-                                            // Original format
-                                            const fromText = cells.eq(6).text().trim();
-                                            const toText = cells.eq(8).text().trim();
-                                            
-                                            console.log('Original Format Raw Location Data:', {
-                                                fromText,
-                                                toText
-                                            });
+                                        // Handle separate CF and Lbs columns
+                                        cubicFeet = parseInt(cells.eq(8).text().trim()) || null;
+                                        weight = parseInt(cells.eq(9).text().trim()) || null;
+                                        miles = parseInt(cells.eq(10).text().trim()) || 0;
+                                        estimate = parseFloat(cells.eq(11).text().trim().replace('$', '').replace(',', '')) || 0;
+                                    } else {
+                                        // Original format processing
+                                        originZip = cells.eq(6).text().trim();
+                                        destZip = cells.eq(8).text().trim();
+                                        
+                                        [originLocation, destLocation] = await Promise.all([
+                                            getLocationByZip(originZip),
+                                            getLocationByZip(destZip)
+                                        ]);
 
-                                            // Extract ZIP codes
-                                            originZip = fromText.match(/\b\d{5}\b/)?.[0];
-                                            destZip = toText.match(/\b\d{5}\b/)?.[0];
-
-                                            console.log('Extracted ZIPs from Original Format:', {
-                                                originZip,
-                                                destZip,
-                                                fromText,
-                                                toText
-                                            });
-                                        }
-
-                                        // Add validation before making the API call
-                                        if (!originZip || !destZip) {
-                                            console.error('Invalid ZIP codes:', { originZip, destZip });
-                                            throw new Error('Invalid ZIP codes');
-                                        }
-
-                                        // Now make the API calls with the ZIP codes
-                                        try {
-                                            [originLocation, destLocation] = await Promise.all([
-                                                getLocationByZip(originZip),
-                                                getLocationByZip(destZip)
-                                            ]);
-                                            console.log('Location lookup results:', {
-                                                origin: originLocation,
-                                                destination: destLocation
-                                            });
-                                        } catch (error) {
-                                            console.error('Location lookup failed:', {
-                                                originZip,
-                                                destZip,
-                                                error: error.message
-                                            });
-                                            throw error;
-                                        }
-                                    } catch (error) {
-                                        console.error('Error processing location data:', error);
-                                        throw error;
+                                        const cfText = cells.eq(9).text().trim();
+                                        const cfMatch = cfText.match(/(\d+)\s*cf\s*\/\s*(\d+)\s*lbs/);
+                                        cubicFeet = cfMatch ? parseInt(cfMatch[1]) : null;
+                                        weight = cfMatch ? parseInt(cfMatch[2]) : null;
+                                        miles = parseInt(cells.eq(10).text().trim()) || 0;
+                                        estimate = parseFloat(cells.eq(11).text().trim().replace('$', '').replace(',', '')) || 0;
                                     }
-
-                                    // Handle separate CF and Lbs columns
-                                    cubicFeet = parseInt(cells.eq(8).text().trim()) || null;
-                                    weight = parseInt(cells.eq(9).text().trim()) || null;
-                                    miles = parseInt(cells.eq(10).text().trim()) || 0;
-                                    estimate = parseFloat(cells.eq(11).text().trim().replace('$', '').replace(',', '')) || 0;
 
                                     console.log('Processing ZIPs:', {
                                         originZip,
