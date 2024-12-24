@@ -308,7 +308,8 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                             
                                             console.log('New Format Raw Location Data:', {
                                                 fromText,
-                                                toText
+                                                toText,
+                                                url
                                             });
 
                                             // Extract ZIP codes using a more robust regex
@@ -322,24 +323,45 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                                 toText
                                             });
                                         } else {
-                                            // Original format
-                                            const fromText = cells.eq(6).text().trim();
-                                            const toText = cells.eq(8).text().trim();
+                                            // Check if it's the third format (with hyperlinked ZIPs)
+                                            const fromCell = cells.eq(4); // "From" column
+                                            const toCell = cells.eq(5);   // "To" column
                                             
-                                            console.log('Original Format Raw Location Data:', {
-                                                fromText,
-                                                toText
+                                            // Try to get ZIP from hyperlink first
+                                            const fromZipLink = fromCell.find('a').text().trim();
+                                            const toZipLink = toCell.find('a').text().trim();
+                                            
+                                            console.log('Checking for hyperlinked format:', {
+                                                fromZipLink,
+                                                toZipLink,
+                                                url
                                             });
 
-                                            // Extract ZIP codes
-                                            originZip = fromText.match(/\b\d{5}\b/)?.[0];
-                                            destZip = toText.match(/\b\d{5}\b/)?.[0];
+                                            if (fromZipLink.match(/^\d{5}$/) && toZipLink.match(/^\d{5}$/)) {
+                                                // This is the third format with hyperlinked ZIPs
+                                                console.log('Found hyperlinked ZIP format');
+                                                originZip = fromZipLink;
+                                                destZip = toZipLink;
+                                            } else {
+                                                // Original format
+                                                const fromText = cells.eq(6).text().trim();
+                                                const toText = cells.eq(8).text().trim();
+                                                
+                                                console.log('Original Format Raw Location Data:', {
+                                                    fromText,
+                                                    toText,
+                                                    url
+                                                });
 
-                                            console.log('Extracted ZIPs from Original Format:', {
+                                                // Extract ZIP codes
+                                                originZip = fromText.match(/\b\d{5}\b/)?.[0];
+                                                destZip = toText.match(/\b\d{5}\b/)?.[0];
+                                            }
+
+                                            console.log('Final Extracted ZIPs:', {
                                                 originZip,
                                                 destZip,
-                                                fromText,
-                                                toText
+                                                format: fromZipLink ? 'hyperlinked' : 'original'
                                             });
                                         }
 
