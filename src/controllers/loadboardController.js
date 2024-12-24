@@ -204,38 +204,17 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                     let frameData;
                     while (retryCount < 3) {
                         frameData = cheerio.load(frameResponse.data);
-                        // Look specifically for table with the purple header cells
-                        const loadTable = frameData('table td[bgcolor="#6D0092"]').closest('table');
-                        
-                        console.log(`Attempt ${retryCount + 1} - Table detection:`, {
-                            purpleHeadersFound: frameData('td[bgcolor="#6D0092"]').length,
-                            tableFound: loadTable.length > 0,
-                            url: frameUrl
-                        });
+                        const loadTable = frameData('table[border="2"]');
                         
                         if (loadTable.length > 0) {
-                            // Verify the structure by checking for specific cell attributes
-                            const hasCorrectStructure = loadTable.find('td[width="5%"]').length > 0 && 
-                                                      loadTable.find('td[width="8%"]').length > 0;
-                            
-                            console.log('Table structure check:', {
-                                hasCorrectStructure,
-                                firstJobNo: loadTable.find('tr:eq(1) td:first').text().trim(),
-                                columnCount: loadTable.find('tr:first td').length
-                            });
-                            
-                            if (hasCorrectStructure) {
-                                console.log('Valid table structure found!');
-                                break;
-                            }
+                            break; // Content loaded successfully
                         }
                         
-                        console.log(`Content not fully loaded on attempt ${retryCount + 1}, waiting to retry...`);
-                        await new Promise(resolve => setTimeout(resolve, 5000));
+                        console.log(`Content not fully loaded, attempt ${retryCount + 1} of 3`);
+                        await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
                         retryCount++;
                         
                         if (retryCount < 3) {
-                            console.log('Retrying with new request...');
                             const newResponse = await axiosInstance.get(frameUrl, {
                                 headers: {
                                     ...axiosInstance.defaults.headers,
@@ -245,15 +224,6 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                             });
                             frameResponse.data = newResponse.data;
                         }
-                    }
-
-                    if (retryCount === 3) {
-                        console.log('Failed to load content after 3 attempts. Final HTML structure:', {
-                            tableCount: frameData('table').length,
-                            tdCount: frameData('td').length,
-                            purpleHeaders: frameData('td[bgcolor="#6D0092"]').length
-                        });
-                        throw new Error('Failed to load table data after 3 attempts');
                     }
 
                     if (frameResponse.status === 200) {
@@ -338,8 +308,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                             
                                             console.log('New Format Raw Location Data:', {
                                                 fromText,
-                                                toText,
-                                                url
+                                                toText
                                             });
 
                                             // Extract ZIP codes using a more robust regex
@@ -353,45 +322,24 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                                 toText
                                             });
                                         } else {
-                                            // Check if it's the third format (with hyperlinked ZIPs)
-                                            const fromCell = cells.eq(4); // "From" column
-                                            const toCell = cells.eq(5);   // "To" column
+                                            // Original format
+                                            const fromText = cells.eq(6).text().trim();
+                                            const toText = cells.eq(8).text().trim();
                                             
-                                            // Try to get ZIP from hyperlink first
-                                            const fromZipLink = fromCell.find('a').text().trim();
-                                            const toZipLink = toCell.find('a').text().trim();
-                                            
-                                            console.log('Checking for hyperlinked format:', {
-                                                fromZipLink,
-                                                toZipLink,
-                                                url
+                                            console.log('Original Format Raw Location Data:', {
+                                                fromText,
+                                                toText
                                             });
 
-                                            if (fromZipLink.match(/^\d{5}$/) && toZipLink.match(/^\d{5}$/)) {
-                                                // This is the third format with hyperlinked ZIPs
-                                                console.log('Found hyperlinked ZIP format');
-                                                originZip = fromZipLink;
-                                                destZip = toZipLink;
-                                            } else {
-                                                // Original format
-                                                const fromText = cells.eq(6).text().trim();
-                                                const toText = cells.eq(8).text().trim();
-                                                
-                                                console.log('Original Format Raw Location Data:', {
-                                                    fromText,
-                                                    toText,
-                                                    url
-                                                });
+                                            // Extract ZIP codes
+                                            originZip = fromText.match(/\b\d{5}\b/)?.[0];
+                                            destZip = toText.match(/\b\d{5}\b/)?.[0];
 
-                                                // Extract ZIP codes
-                                                originZip = fromText.match(/\b\d{5}\b/)?.[0];
-                                                destZip = toText.match(/\b\d{5}\b/)?.[0];
-                                            }
-
-                                            console.log('Final Extracted ZIPs:', {
+                                            console.log('Extracted ZIPs from Original Format:', {
                                                 originZip,
                                                 destZip,
-                                                format: fromZipLink ? 'hyperlinked' : 'original'
+                                                fromText,
+                                                toText
                                             });
                                         }
 
@@ -703,38 +651,17 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
                     let frameData;
                     while (retryCount < 3) {
                         frameData = cheerio.load(frameResponse.data);
-                        // Look specifically for table with the purple header cells
-                        const loadTable = frameData('table td[bgcolor="#6D0092"]').closest('table');
-                        
-                        console.log(`Attempt ${retryCount + 1} - Table detection:`, {
-                            purpleHeadersFound: frameData('td[bgcolor="#6D0092"]').length,
-                            tableFound: loadTable.length > 0,
-                            url: frameUrl
-                        });
+                        const loadTable = frameData('table[border="2"]');
                         
                         if (loadTable.length > 0) {
-                            // Verify the structure by checking for specific cell attributes
-                            const hasCorrectStructure = loadTable.find('td[width="5%"]').length > 0 && 
-                                                      loadTable.find('td[width="8%"]').length > 0;
-                            
-                            console.log('Table structure check:', {
-                                hasCorrectStructure,
-                                firstJobNo: loadTable.find('tr:eq(1) td:first').text().trim(),
-                                columnCount: loadTable.find('tr:first td').length
-                            });
-                            
-                            if (hasCorrectStructure) {
-                                console.log('Valid table structure found!');
-                                break;
-                            }
+                            break; // Content loaded successfully
                         }
                         
-                        console.log(`Content not fully loaded on attempt ${retryCount + 1}, waiting to retry...`);
-                        await new Promise(resolve => setTimeout(resolve, 5000));
+                        console.log(`Content not fully loaded, attempt ${retryCount + 1} of 3`);
+                        await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
                         retryCount++;
                         
                         if (retryCount < 3) {
-                            console.log('Retrying with new request...');
                             const newResponse = await axiosInstance.get(frameUrl, {
                                 headers: {
                                     ...axiosInstance.defaults.headers,
@@ -744,15 +671,6 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
                             });
                             frameResponse.data = newResponse.data;
                         }
-                    }
-
-                    if (retryCount === 3) {
-                        console.log('Failed to load content after 3 attempts. Final HTML structure:', {
-                            tableCount: frameData('table').length,
-                            tdCount: frameData('td').length,
-                            purpleHeaders: frameData('td[bgcolor="#6D0092"]').length
-                        });
-                        throw new Error('Failed to load table data after 3 attempts');
                     }
 
                     if (frameResponse.status === 200) {
