@@ -204,17 +204,38 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                     let frameData;
                     while (retryCount < 3) {
                         frameData = cheerio.load(frameResponse.data);
-                        const loadTable = frameData('table[border="2"]');
+                        // Look specifically for table with the purple header cells
+                        const loadTable = frameData('table td[bgcolor="#6D0092"]').closest('table');
+                        
+                        console.log(`Attempt ${retryCount + 1} - Table detection:`, {
+                            purpleHeadersFound: frameData('td[bgcolor="#6D0092"]').length,
+                            tableFound: loadTable.length > 0,
+                            url: frameUrl
+                        });
                         
                         if (loadTable.length > 0) {
-                            break; // Content loaded successfully
+                            // Verify the structure by checking for specific cell attributes
+                            const hasCorrectStructure = loadTable.find('td[width="5%"]').length > 0 && 
+                                                      loadTable.find('td[width="8%"]').length > 0;
+                            
+                            console.log('Table structure check:', {
+                                hasCorrectStructure,
+                                firstJobNo: loadTable.find('tr:eq(1) td:first').text().trim(),
+                                columnCount: loadTable.find('tr:first td').length
+                            });
+                            
+                            if (hasCorrectStructure) {
+                                console.log('Valid table structure found!');
+                                break;
+                            }
                         }
                         
-                        console.log(`Content not fully loaded, attempt ${retryCount + 1} of 3`);
-                        await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+                        console.log(`Content not fully loaded on attempt ${retryCount + 1}, waiting to retry...`);
+                        await new Promise(resolve => setTimeout(resolve, 5000));
                         retryCount++;
                         
                         if (retryCount < 3) {
+                            console.log('Retrying with new request...');
                             const newResponse = await axiosInstance.get(frameUrl, {
                                 headers: {
                                     ...axiosInstance.defaults.headers,
@@ -224,6 +245,15 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                             });
                             frameResponse.data = newResponse.data;
                         }
+                    }
+
+                    if (retryCount === 3) {
+                        console.log('Failed to load content after 3 attempts. Final HTML structure:', {
+                            tableCount: frameData('table').length,
+                            tdCount: frameData('td').length,
+                            purpleHeaders: frameData('td[bgcolor="#6D0092"]').length
+                        });
+                        throw new Error('Failed to load table data after 3 attempts');
                     }
 
                     if (frameResponse.status === 200) {
@@ -673,17 +703,38 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
                     let frameData;
                     while (retryCount < 3) {
                         frameData = cheerio.load(frameResponse.data);
-                        const loadTable = frameData('table[border="2"]');
+                        // Look specifically for table with the purple header cells
+                        const loadTable = frameData('table td[bgcolor="#6D0092"]').closest('table');
+                        
+                        console.log(`Attempt ${retryCount + 1} - Table detection:`, {
+                            purpleHeadersFound: frameData('td[bgcolor="#6D0092"]').length,
+                            tableFound: loadTable.length > 0,
+                            url: frameUrl
+                        });
                         
                         if (loadTable.length > 0) {
-                            break; // Content loaded successfully
+                            // Verify the structure by checking for specific cell attributes
+                            const hasCorrectStructure = loadTable.find('td[width="5%"]').length > 0 && 
+                                                      loadTable.find('td[width="8%"]').length > 0;
+                            
+                            console.log('Table structure check:', {
+                                hasCorrectStructure,
+                                firstJobNo: loadTable.find('tr:eq(1) td:first').text().trim(),
+                                columnCount: loadTable.find('tr:first td').length
+                            });
+                            
+                            if (hasCorrectStructure) {
+                                console.log('Valid table structure found!');
+                                break;
+                            }
                         }
                         
-                        console.log(`Content not fully loaded, attempt ${retryCount + 1} of 3`);
-                        await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+                        console.log(`Content not fully loaded on attempt ${retryCount + 1}, waiting to retry...`);
+                        await new Promise(resolve => setTimeout(resolve, 5000));
                         retryCount++;
                         
                         if (retryCount < 3) {
+                            console.log('Retrying with new request...');
                             const newResponse = await axiosInstance.get(frameUrl, {
                                 headers: {
                                     ...axiosInstance.defaults.headers,
@@ -693,6 +744,15 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
                             });
                             frameResponse.data = newResponse.data;
                         }
+                    }
+
+                    if (retryCount === 3) {
+                        console.log('Failed to load content after 3 attempts. Final HTML structure:', {
+                            tableCount: frameData('table').length,
+                            tdCount: frameData('td').length,
+                            purpleHeaders: frameData('td[bgcolor="#6D0092"]').length
+                        });
+                        throw new Error('Failed to load table data after 3 attempts');
                     }
 
                     if (frameResponse.status === 200) {
