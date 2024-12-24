@@ -237,7 +237,13 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                         const loadTable = frameData('table[border="2"]');
                         // console.log('load table:', loadTable);
                         if (loadTable.length) {
-                            // console.log('load table length:', loadTable.length);
+                            // Get headers to detect format
+                            const headerRow = frameData(loadTable.find('tr').first());
+                            const headers = headerRow.find('td').map((i, el) => frameData(el).text().trim()).get();
+                            
+                            // Check if it's the new format by looking for separate CF and Lbs columns
+                            const isNewFormat = headers.includes('CF') && headers.includes('Lbs');
+                            
                             for (const element of loadTable.find('tr').toArray()) {
                                 if (frameData(element).index() === 0) continue; // Skip header
                                 
@@ -248,7 +254,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                     
                                     const jobNumber = cells.eq(0).text().trim();
                                     if (!jobNumber) continue;
-                                    else j_num.push(jobNumber)
+                                    else j_num.push(jobNumber);
                                     // Check if the job number already exists
                                     const existingLoad = await Load.findOne({
                                         where: { jobNumber }
@@ -283,25 +289,47 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                         return;
                                     }
 
-                                    // Get ZIP codes
-                                    const originZip = cells.eq(6).text().trim();
-                                    const destZip = cells.eq(8).text().trim();
+                                    // Modified location and data extraction based on format
+                                    let originZip, destZip, originLocation, destLocation, cubicFeet, weight, miles, estimate;
 
-                                    // Fetch location data using ZIP codes
-                                    const [originLocation, destLocation] = await Promise.all([
-                                        getLocationByZip(originZip),
-                                        getLocationByZip(destZip)
-                                    ]);
+                                    if (isNewFormat) {
+                                        // Parse location with ZIP code included in the cell
+                                        const fromText = cells.eq(5).text().trim();
+                                        const toText = cells.eq(7).text().trim();
+                                        
+                                        // Extract ZIP from location string
+                                        originZip = fromText.match(/\d{5}$/)?.[0] || '';
+                                        destZip = toText.match(/\d{5}$/)?.[0] || '';
 
-                                    // Extract other data
-                                    const cfText = cells.eq(9).text().trim();
-                                    const cfMatch = cfText.match(/(\d+)\s*cf\s*\/\s*(\d+)\s*lbs/);
-                                    const cubicFeet = cfMatch ? parseInt(cfMatch[1]) : null;
-                                    const weight = cfMatch ? parseInt(cfMatch[2]) : null;
+                                        // Get location data
+                                        [originLocation, destLocation] = await Promise.all([
+                                            getLocationByZip(originZip),
+                                            getLocationByZip(destZip)
+                                        ]);
 
-                                    const miles = parseInt(cells.eq(10).text().trim()) || 0;
-                                    const estimate = parseFloat(cells.eq(11).text().trim().replace('$', '').replace(',', '')) || 0;
-                                    
+                                        // Handle separate CF and Lbs columns
+                                        cubicFeet = parseInt(cells.eq(8).text().trim()) || null;
+                                        weight = parseInt(cells.eq(9).text().trim()) || null;
+                                        miles = parseInt(cells.eq(10).text().trim()) || 0;
+                                        estimate = parseFloat(cells.eq(11).text().trim().replace('$', '').replace(',', '')) || 0;
+                                    } else {
+                                        // Original format processing
+                                        originZip = cells.eq(6).text().trim();
+                                        destZip = cells.eq(8).text().trim();
+                                        
+                                        [originLocation, destLocation] = await Promise.all([
+                                            getLocationByZip(originZip),
+                                            getLocationByZip(destZip)
+                                        ]);
+
+                                        const cfText = cells.eq(9).text().trim();
+                                        const cfMatch = cfText.match(/(\d+)\s*cf\s*\/\s*(\d+)\s*lbs/);
+                                        cubicFeet = cfMatch ? parseInt(cfMatch[1]) : null;
+                                        weight = cfMatch ? parseInt(cfMatch[2]) : null;
+                                        miles = parseInt(cells.eq(10).text().trim()) || 0;
+                                        estimate = parseFloat(cells.eq(11).text().trim().replace('$', '').replace(',', '')) || 0;
+                                    }
+
                                     switch(broker.userType){
                                         case 'BROKER':
                                             loadType = 'RFP';
