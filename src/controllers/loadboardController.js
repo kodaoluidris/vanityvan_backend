@@ -247,6 +247,7 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                             console.log('\n=== Table Format ===');
                             console.log('Headers:', headers);
                             console.log('Is New Format:', isNewFormat);
+                            console.log('Processing URL:', url);
 
                             for (const element of loadTable.find('tr').toArray()) {
                                 if (frameData(element).index() === 0) continue; // Skip header
