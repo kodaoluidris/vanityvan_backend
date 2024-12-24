@@ -244,10 +244,6 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                             // Check if it's the new format by looking for separate CF and Lbs columns
                             const isNewFormat = headers.includes('CF') && headers.includes('Lbs');
                             
-                            console.log('\n=== Table Format ===');
-                            console.log('Headers:', headers);
-                            console.log('Is New Format:', isNewFormat);
-
                             for (const element of loadTable.find('tr').toArray()) {
                                 if (frameData(element).index() === 0) continue; // Skip header
                                 
@@ -296,10 +292,6 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                     // Modified location and data extraction based on format
                                     let originZip, destZip, originLocation, destLocation, cubicFeet, weight, miles, estimate;
 
-                                    console.log('\n=== Row Data ===');
-                                    console.log('Row cells length:', cells.length);
-                                    console.log('Row cells content:', cells.map(i => frameData(cells[i]).text().trim()));
-
                                     if (isNewFormat) {
                                         // Parse location with ZIP code included in the cell
                                         const fromText = cells.eq(5).text().trim();
@@ -337,18 +329,6 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
                                         miles = parseInt(cells.eq(10).text().trim()) || 0;
                                         estimate = parseFloat(cells.eq(11).text().trim().replace('$', '').replace(',', '')) || 0;
                                     }
-
-                                    console.log('Processing ZIPs:', {
-                                        originZip,
-                                        destZip,
-                                        url
-                                    });
-
-                                    console.log('Calling location service for:', {
-                                        originZip,
-                                        destZip,
-                                        url
-                                    });
 
                                     switch(broker.userType){
                                         case 'BROKER':
