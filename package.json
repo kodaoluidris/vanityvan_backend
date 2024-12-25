@@ -22,6 +22,7 @@
     "bcryptjs": "^2.4.3",
     "bull": "^4.16.4",
     "cheerio": "^1.0.0",
+    "cloudinary": "^2.5.1",
     "compression": "^1.7.5",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -43,6 +44,7 @@
     "sequelize": "^6.37.5",
     "sharp": "^0.33.5",
     "socks-proxy-agent": "^8.0.5",
+    "streamifier": "^0.1.1",
     "uuid": "^11.0.3",
     "winston": "^3.17.0",
     "ws": "^8.18.0"

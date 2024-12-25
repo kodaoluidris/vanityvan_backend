@@ -4,6 +4,7 @@ const fs = require('fs').promises;
 const db = require('../config/database');
 const sharp = require('sharp');
 const { User } = require('../models');
+const { v2: cloudinary } = require('cloudinary');
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -68,6 +69,13 @@ exports.uploadDocument = async (req, res) => {
 
 exports.uploadMiddleware = upload.single('file');
 
+// Configure Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'drzm0odun',
+    api_key: process.env.CLOUDINARY_API_KEY || '437571938276392',
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
 exports.uploadProfilePhoto = async (req, res) => {
     try {
         if (!req.file) {
@@ -89,17 +97,23 @@ exports.uploadProfilePhoto = async (req, res) => {
             .jpeg({ quality: 90 })
             .toFile(processedFilePath);
 
-        // Delete the original file
+        // Upload to Cloudinary
+        const uploadResult = await cloudinary.uploader.upload(processedFilePath, {
+            folder: 'profile-photos',
+            resource_type: 'image',
+            transformation: [
+                { width: 300, height: 300, crop: 'fill' },
+                { fetch_format: 'auto', quality: 'auto' }
+            ]
+        });
+
+        // Delete the local files after successful upload
         await fs.unlink(req.file.path);
+        await fs.unlink(processedFilePath);
 
-        // Get host from request object
-        const host = `${req.protocol}://${req.get('host')}`;
-
-        const photoUrl = `${host}/api/uploads/profile-photos/${processedFileName}`;
-
-        // Update user's photo in database
+        // Update user's photo in database with Cloudinary URL
         await User.update(
-            { photo: photoUrl },
+            { photo: uploadResult.secure_url },
             { 
                 where: { id: req.userData.userId },
                 individualHooks: false
@@ -109,14 +123,23 @@ exports.uploadProfilePhoto = async (req, res) => {
         res.json({
             status: 'success',
             data: {
-                photoUrl: photoUrl
+                photoUrl: uploadResult.secure_url
             }
         });
     } catch (error) {
         console.error('Upload error:', error);
+        // Try to clean up any files if they exist
+        try {
+            if (req.file?.path) await fs.unlink(req.file.path);
+            if (processedFilePath) await fs.unlink(processedFilePath);
+        } catch (cleanupError) {
+            console.error('Cleanup error:', cleanupError);
+        }
+
         res.status(500).json({
             status: 'error',
-            message: 'Error uploading photo'
+            message: 'Error uploading photo',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 };
