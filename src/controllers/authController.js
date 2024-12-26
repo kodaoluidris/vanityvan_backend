@@ -40,8 +40,12 @@ class AuthController {
       // Additional validation for carriers
       if ((userType === 'RFD_CARRIER' || userType === 'RFP_CARRIER') && !dotNumber) {
         return res.status(400).json({
-          error: 'Validation Error',
-          message: 'DOT number is required for carriers'
+          status: 'error',
+          message: 'Registration failed',
+          errors: [{
+            field: 'dotNumber',
+            message: 'DOT number is required for carriers'
+          }]
         });
       }
 
