@@ -66,16 +66,19 @@ module.exports = (sequelize, DataTypes) => {
       }
     },
     dotNumber: {
-      type: DataTypes.STRING(7),
+      type: DataTypes.STRING,
       allowNull: true,
       field: 'dot_number',
       validate: {
-        len: [7, 7],
-        isNumeric: true,
-        customValidator(value) {
-          if ((this.userType === 'RFD_CARRIER' || this.userType === 'RFP_CARRIER') && !value) {
-            throw new Error('DOT number is required for carriers');
-          }
+        len: {
+          args: [7, 7],
+          msg: "DOT Number must be exactly 7 digits"
+        },
+        isNumeric: {
+          msg: "DOT Number must contain only numbers"
+        },
+        notEmpty: {
+          msg: "DOT Number is required"
         }
       }
     },
