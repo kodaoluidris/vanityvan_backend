@@ -949,16 +949,46 @@ module.exports = {
                 }
 
                 try {
-                    console.log('\n=== Attempting to save records ===');
-                    console.log('Records to save:', records);
-                    const createdLoads = await Load.bulkCreate(records);
+                    // Get all job numbers from the records to be imported
+                    const jobNumbers = records.map(record => record.jobNumber);
+                    
+                    // Check for existing records with these job numbers
+                    const existingLoads = await Load.findAll({
+                        where: {
+                            jobNumber: {
+                                [Op.in]: jobNumbers
+                            }
+                        },
+                        attributes: ['jobNumber']
+                    });
+
+                    // Filter out records that already exist
+                    const existingJobNumbers = existingLoads.map(load => load.jobNumber);
+                    const newRecords = records.filter(record => !existingJobNumbers.includes(record.jobNumber));
+
+                    console.log('\n=== Duplicate Check ===');
+                    console.log('Total records:', records.length);
+                    console.log('Existing records:', existingJobNumbers.length);
+                    console.log('New records to save:', newRecords.length);
+
+                    if (newRecords.length === 0) {
+                        return res.status(400).json({
+                            status: 'error',
+                            message: 'All records already exist in the database',
+                            duplicates: existingJobNumbers
+                        });
+                    }
+
+                    const createdLoads = await Load.bulkCreate(newRecords);
                     console.log('Successfully created loads:', createdLoads.length);
                     
                     res.status(200).json({
                         status: 'success',
                         message: `Successfully imported ${createdLoads.length} loads`,
                         data: {
-                            count: createdLoads.length
+                            count: createdLoads.length,
+                            skipped: existingJobNumbers.length,
+                            skippedJobNumbers: existingJobNumbers
                         }
                     });
                 } catch (dbError) {
