@@ -13,5 +13,7 @@ router.get('/view-loads', auth, LoadController.viewLoads);
 router.get('/all-loads', auth, LoadController.allLoads);
 router.post('/:loadId/request', auth, LoadController.requestLoad);
 router.get('/:loadId/requests', auth, LoadController.getLoadRequests);
+router.post('/import', auth, LoadController.importLoads);
+router.get('/download-sample', LoadController.downloadSampleCSV);
 
 module.exports = router; 

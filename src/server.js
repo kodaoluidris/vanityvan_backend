@@ -5,9 +5,21 @@ const morgan = require('morgan');
 const routes = require('./routes');
 const logger = require('./utils/logger');
 const path = require('path');
+const cors = require('cors');
+const fileUpload = require('express-fileupload');
 
 const app = express();
 
+
+// const corsOptions = {
+//   origin: 'http://localhost:3000', // Replace with your frontend's URL
+//   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+//   credentials: true, // Include cookies or authentication headers if needed
+// };
+
+// app.use(cors(corsOptions));
+
+// 
 // Security Middleware
 app.use(helmet());
 
@@ -18,12 +30,20 @@ app.use(morgan('combined'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+
+// Add this before your routes
+app.use(fileUpload({
+    createParentPath: true,
+    limits: { 
+        fileSize: 5 * 1024 * 1024 // 5MB max file size
+    },
+}));
 // API Routes
 app.use('/api', routes);
 app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
 
-const PORT = process.env.PORT || 9000;
-app.listen(PORT,'0.0.0.0', () => {
+const PORT = process.env.PORT || 9001;
+app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 

@@ -2,6 +2,8 @@ const loadService = require('../services/loadService');
 const { Load, User, LoadRequest } = require('../models');
 const { Op } = require('sequelize');
 const NotificationService = require('../services/notificationService');
+const csv = require('csv-parse');
+const { getLocationByZip } = require('../utils/locationService');
 
 // Export the controller methods directly
 module.exports = {
@@ -805,5 +807,287 @@ module.exports = {
                 message: 'Error managing users'
             });
         }
+    },
+
+    importLoads: async (req, res) => {
+        try {
+            if (!req.files || !req.files.file) {
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'No file uploaded',
+                    errors: [{
+                        field: 'file',
+                        message: 'Please upload a CSV file'
+                    }]
+                });
+            }
+
+            const file = req.files.file;
+            const records = [];
+            const errors = [];
+            let rowNumber = 1;
+
+            // Parse CSV file without using headers
+            const parser = csv.parse({
+                columns: false,
+                skip_empty_lines: true,
+                trim: true,
+                relax_column_count: false
+            });
+
+            let loopCounter = 0;
+            let processPromises = []; // Array to hold all processing promises
+
+            parser.on('readable', async function() {
+                let record;
+                while ((record = parser.read()) !== null) {
+                    loopCounter++;
+                    console.log(`\n=== Loop iteration ${loopCounter} ===`);
+                    console.log('Raw record:', record);
+                    
+                    // Skip the header row and empty rows
+                    if (rowNumber === 1 || record.length !== 11) {
+                        console.log(`Skipping row ${rowNumber}: ${record.length !== 11 ? 'Invalid column count' : 'Header row'}`);
+                        rowNumber++;
+                        continue;
+                    }
+                    
+                    // Validate that we have actual data
+                    if (!record[0] || !record[1] || !record[2] || !record[3] || !record[4]) {
+                        console.log(`Skipping row ${rowNumber}: Missing required data`);
+                        rowNumber++;
+                        continue;
+                    }
+
+                    const mappedRecord = {
+                        jobNumber: record[0],
+                        pickupZip: record[1],
+                        pickupDate: record[2],
+                        deliveryZip: record[3],
+                        deliveryDate: record[4],
+                        weight: record[5],
+                        balance: record[6],
+                        mobilePhone: record[7],
+                        rate: record[8],
+                        cubicFeet: record[9],
+                        description: record[10]
+                    };
+
+                    console.log('Mapped record:', mappedRecord);
+
+                    const validationErrors = validateRecord(mappedRecord, rowNumber);
+                    console.log('Validation errors:', validationErrors);
+                    
+                    if (validationErrors.length > 0) {
+                        errors.push(...validationErrors);
+                    } else {
+                        // Push the promise into our array instead of awaiting it immediately
+                        processPromises.push(
+                            (async () => {
+                                try {
+                                    const [originLocation, destLocation] = await Promise.all([
+                                        getLocationByZip(mappedRecord.pickupZip),
+                                        getLocationByZip(mappedRecord.deliveryZip)
+                                    ]);
+
+                                    records.push({
+                                        ...mappedRecord,
+                                        userId: req.userData.userId,
+                                        loadType: req.userData?.userType === 'BROKER' ? 'RFP' : 
+                                                 req.userData?.userType === 'RFP_CARRIER' ? 'RFD' : 'TRUCK',
+                                        status: 'ACTIVE',
+                                        pickupLocation: originLocation.location,
+                                        deliveryLocation: destLocation.location,
+                                        details: {
+                                            weight: mappedRecord.weight || null,
+                                            source: 'CSV_IMPORT',
+                                            coordinates: {
+                                                origin: originLocation.coordinates,
+                                                destination: destLocation.coordinates
+                                            }
+                                        }
+                                    });
+                                    console.log(`Successfully processed record ${rowNumber}. Total records pending: ${records.length}`);
+                                } catch (locationError) {
+                                    console.error('Location error:', locationError);
+                                    errors.push({
+                                        field: 'location',
+                                        message: `Row ${rowNumber}: Error fetching location data: ${locationError.message}`,
+                                        row: rowNumber
+                                    });
+                                }
+                            })()
+                        );
+                    }
+                    rowNumber++;
+                }
+            });
+
+            parser.on('end', async function() {
+                // Wait for all processing to complete
+                await Promise.all(processPromises);
+                console.log('\n=== Final Statistics ===');
+                console.log('Total records after processing:', records.length);
+
+                if (records.length === 0) {
+                    return res.status(400).json({
+                        status: 'error',
+                        message: 'No valid records found in CSV file',
+                        errors: errors.length > 0 ? errors : [{
+                            field: 'file',
+                            message: 'CSV file contains no valid records'
+                        }]
+                    });
+                }
+
+                if (errors.length > 0) {
+                    return res.status(400).json({
+                        status: 'error',
+                        message: 'Validation failed',
+                        errors: errors
+                    });
+                }
+
+                try {
+                    console.log('\n=== Attempting to save records ===');
+                    console.log('Records to save:', records);
+                    const createdLoads = await Load.bulkCreate(records);
+                    console.log('Successfully created loads:', createdLoads.length);
+                    
+                    res.status(200).json({
+                        status: 'success',
+                        message: `Successfully imported ${createdLoads.length} loads`,
+                        data: {
+                            count: createdLoads.length
+                        }
+                    });
+                } catch (dbError) {
+                    console.error('Database error:', dbError);
+                    res.status(500).json({
+                        status: 'error',
+                        message: 'Failed to save loads to database',
+                        error: dbError.message
+                    });
+                }
+            });
+
+            // Feed the file data into the parser
+            parser.write(file.data);
+            parser.end();
+
+        } catch (error) {
+            console.error('Import loads error:', error);
+            res.status(500).json({
+                status: 'error',
+                message: 'Failed to import loads',
+                error: error.message
+            });
+        }
+    },
+
+    downloadSampleCSV: async (req, res) => {
+        try {
+            // Define the CSV headers
+            const headers = [
+                'jobNumber',
+                'pickupZip',
+                'pickupDate',
+                'deliveryZip',
+                'deliveryDate',
+                'weight',
+                'balance',
+                'mobilePhone',
+                'rate',
+                'cubicFeet',
+                'description'
+            ];
+
+            // Create the CSV content (just headers)
+            const csvContent = headers.join(',') + '\n';
+
+            // Set the response headers for file download
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename=load_import_template.csv');
+
+            // Send the CSV content
+            res.send(csvContent);
+
+        } catch (error) {
+            console.error('Download sample CSV error:', error);
+            res.status(500).json({
+                status: 'error',
+                message: 'Failed to generate sample CSV',
+                error: error.message
+            });
+        }
     }
 }; 
+
+function validateRecord(record, rowNumber) {
+    const errors = [];
+
+    // Required fields validation
+    const requiredFields = ['pickupZip', 'pickupDate', 'deliveryZip', 'deliveryDate'];
+    requiredFields.forEach(field => {
+        if (!record[field]) {
+            errors.push({
+                field: field,
+                message: `Row ${rowNumber}: ${field} is required`,
+                row: rowNumber
+            });
+        }
+    });
+
+    // Date validation helper function
+    const validateAndConvertDate = (dateStr) => {
+        // Check for DD/MM/YYYY format
+        const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+        const match = dateStr.match(dateRegex);
+        
+        if (match) {
+            const [_, day, month, year] = match;
+            // Convert to Date object to validate
+            const date = new Date(year, month - 1, day);
+            if (
+                date.getDate() === parseInt(day) &&
+                date.getMonth() === parseInt(month) - 1 &&
+                date.getFullYear() === parseInt(year)
+            ) {
+                // Convert to YYYY-MM-DD format for database
+                return `${year}-${month}-${day}`;
+            }
+        }
+        return null;
+    };
+
+    // Date fields validation
+    ['pickupDate', 'deliveryDate'].forEach(field => {
+        if (record[field]) {
+            const convertedDate = validateAndConvertDate(record[field]);
+            if (!convertedDate) {
+                errors.push({
+                    field: field,
+                    message: `Row ${rowNumber}: ${field} must be in DD/MM/YYYY format`,
+                    row: rowNumber
+                });
+            } else {
+                // Update the record with converted date
+                record[field] = convertedDate;
+            }
+        }
+    });
+
+    // ZIP code validation
+    ['pickupZip', 'deliveryZip'].forEach(field => {
+        if (record[field] && !/^\d{5}$/.test(record[field])) {
+            errors.push({
+                field: field,
+                message: `Row ${rowNumber}: ${field} must be a 5-digit number`,
+                row: rowNumber
+            });
+        }
+    });
+
+    // Rest of your validations...
+    return errors;
+}
