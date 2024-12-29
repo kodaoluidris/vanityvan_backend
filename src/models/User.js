@@ -151,6 +151,16 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: [],
       field: 'route_alerts',
       allowNull: false
+    },
+    resetPasswordToken: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: 'reset_password_token'
+    },
+    resetPasswordExpires: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: 'reset_password_expires'
     }
   }, {
     sequelize,

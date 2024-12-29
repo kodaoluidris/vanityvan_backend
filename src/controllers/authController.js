@@ -1,8 +1,12 @@
 const AuthService = require('../services/authService');
 const { ValidationError } = require('../utils/errors');
+const { Op } = require('sequelize');
 const logger = require('../utils/logger');
 const { User } = require('../models');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
+const { sendEmail } = require('../utils/email'); // Assuming you have an email utility
 
 class AuthController {
   static async test(req, res, next) {
@@ -323,6 +327,217 @@ class AuthController {
         });
       }
       next(error);
+    }
+  }
+
+  static async changePassword(req, res) {
+    try {
+      const { old_password, new_password, confirm_password } = req.body;
+
+      // Validation
+      if (!old_password || !new_password || !confirm_password) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'All fields are required',
+          errors: [
+            !old_password ? { field: 'old_password', message: 'Old password is required' } : null,
+            !new_password ? { field: 'new_password', message: 'New password is required' } : null,
+            !confirm_password ? { field: 'confirm_password', message: 'Confirm password is required' } : null
+          ].filter(Boolean)
+        });
+      }
+
+      // Check if new password matches confirm password
+      if (new_password !== confirm_password) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Passwords do not match',
+          errors: [{
+            field: 'confirm_password',
+            message: 'New password and confirm password must match'
+          }]
+        });
+      }
+
+      // Get user from database
+      const user = await User.findByPk(req.userData.userId);
+      if (!user) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'User not found'
+        });
+      }
+
+      // Verify old password using bcrypt.compareSync
+      const isValidPassword = bcrypt.compareSync(old_password, user.password);
+      if (!isValidPassword) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid old password',
+          errors: [{
+            field: 'old_password',
+            message: 'Current password is incorrect'
+          }]
+        });
+      }
+
+      // Update password
+      await user.update({ password: new_password });
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Password updated successfully'
+      });
+
+    } catch (error) {
+      console.error('Change password error:', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to change password',
+        error: error.message
+      });
+    }
+  }
+
+  // Request password reset
+  static async forgotPassword(req, res) {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Email is required',
+          errors: [{
+            field: 'email',
+            message: 'Please provide your email address'
+          }]
+        });
+      }
+
+      // Find user by email
+      const user = await User.findOne({ where: { email } });
+      if (!user) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'No account found with that email address'
+        });
+      }
+
+      // Generate reset token
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const tokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour expiry
+
+      // Save hashed token in database
+      const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+      await user.update({
+        resetPasswordToken: hashedToken,
+        resetPasswordExpires: tokenExpiry
+      });
+
+      // Create reset URL
+      const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+      // Email content
+      const emailContent = {
+        to: user.email,
+        subject: 'Password Reset Request',
+        html: `
+          <h1>Password Reset Request</h1>
+          <p>You requested to reset your password. Click the link below to reset it:</p>
+          <a href="${resetUrl}">Reset Password</a>
+          <p>This link will expire in 1 hour.</p>
+          <p>If you didn't request this, please ignore this email.</p>
+        `
+      };
+
+      // Send email
+      await sendEmail(emailContent);
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Password reset link sent to email'
+      });
+
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to process password reset request',
+        error: error.message
+      });
+    }
+  }
+
+  // Reset password with token
+  static async resetPassword(req, res) {
+    try {
+      const { token, new_password, confirm_password } = req.body;
+
+      // Validation
+      if (!token || !new_password || !confirm_password) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'All fields are required',
+          errors: [
+            !token ? { field: 'token', message: 'Token is required' } : null,
+            !new_password ? { field: 'new_password', message: 'New password is required' } : null,
+            !confirm_password ? { field: 'confirm_password', message: 'Confirm password is required' } : null
+          ].filter(Boolean)
+        });
+      }
+
+      // Check if passwords match
+      if (new_password !== confirm_password) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Passwords do not match',
+          errors: [{
+            field: 'confirm_password',
+            message: 'New password and confirm password must match'
+          }]
+        });
+      }
+
+      // Hash the token from the URL
+      const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+      // Find user with valid token
+      const user = await User.findOne({
+        where: {
+          resetPasswordToken: hashedToken,
+          resetPasswordExpires: {
+            [Op.gt]: new Date() // Token not expired
+          }
+        }
+      });
+
+      if (!user) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid or expired reset token'
+        });
+      }
+
+      // Update password
+      await user.update({
+        password: new_password,
+        resetPasswordToken: null,
+        resetPasswordExpires: null
+      });
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Password has been reset successfully'
+      });
+
+    } catch (error) {
+      console.error('Reset password error:', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to reset password',
+        error: error.message
+      });
     }
   }
 }
