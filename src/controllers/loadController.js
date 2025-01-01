@@ -72,13 +72,115 @@ module.exports = {
 
     updateLoad: async (req, res) => {
         try {
-            const load = await loadService.updateLoad(req.params.id, req.body);
+            const loadId = req.params.id;
+            const updateData = req.body;
+
+            // Find the load and check if it exists
+            const load = await Load.findByPk(loadId);
+            
             if (!load) {
-                return res.status(404).json({ message: 'Load not found' });
+                return res.status(404).json({
+                    status: 'error',
+                    message: 'Load not found',
+                    errors: [{
+                        field: 'id',
+                        message: 'Load with the specified ID does not exist'
+                    }]
+                });
             }
-            res.json(load);
+
+            // Check if load is active
+            if (load.status !== 'ACTIVE') {
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'Cannot update inactive load',
+                    errors: [{
+                        field: 'status',
+                        message: 'Only active loads can be updated'
+                    }]
+                });
+            }
+
+            // Check if the load belongs to the user
+            if (load.userId !== req.userData.userId) {
+                return res.status(403).json({
+                    status: 'error',
+                    message: 'Unauthorized',
+                    errors: [{
+                        field: 'auth',
+                        message: 'You do not have permission to update this load'
+                    }]
+                });
+            }
+
+            // Fields that are allowed to be updated
+            const allowedUpdates = [
+                'jobNumber',
+                'pickupZip',
+                'pickupDate',
+                'deliveryZip',
+                'deliveryDate',
+                'weight',
+                'balance',
+                'mobilePhone',
+                'rate',
+                'cubicFeet',
+                'description'
+            ];
+
+            // Filter out any fields that aren't in allowedUpdates
+            const filteredData = Object.keys(updateData)
+                .filter(key => allowedUpdates.includes(key))
+                .reduce((obj, key) => {
+                    obj[key] = updateData[key];
+                    return obj;
+                }, {});
+
+            // If updating location-related fields, update the location data
+            if (filteredData.pickupZip || filteredData.deliveryZip) {
+                const [originLocation, destLocation] = await Promise.all([
+                    filteredData.pickupZip ? getLocationByZip(filteredData.pickupZip) : null,
+                    filteredData.deliveryZip ? getLocationByZip(filteredData.deliveryZip) : null
+                ]);
+
+                if (originLocation) {
+                    filteredData.pickupLocation = originLocation.location;
+                    if (!filteredData.details) filteredData.details = load.details || {};
+                    filteredData.details.coordinates = {
+                        ...load.details?.coordinates,
+                        origin: originLocation.coordinates
+                    };
+                }
+
+                if (destLocation) {
+                    filteredData.deliveryLocation = destLocation.location;
+                    if (!filteredData.details) filteredData.details = load.details || {};
+                    filteredData.details.coordinates = {
+                        ...load.details?.coordinates,
+                        destination: destLocation.coordinates
+                    };
+                }
+            }
+
+            // Update the load
+            await load.update(filteredData);
+
+            // Fetch the updated load to return
+            const updatedLoad = await Load.findByPk(loadId);
+
+            res.status(200).json({
+                status: 'success',
+                message: 'Load updated successfully',
+                data: updatedLoad
+            });
+
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            console.error('Update load error:', error);
+            res.status(500).json({
+                status: 'error',
+                message: 'Failed to update load',
+                error: error.message
+            });
         }
     },
 

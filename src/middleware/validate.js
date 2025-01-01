@@ -125,6 +125,21 @@ exports.validateLoad = [
   handleValidationErrors
 ];
 
+exports.validateUpdateLoad = [
+  body('pickupLocation').optional(),
+  body('deliveryLocation').optional(),
+  body('pickupDate').isISO8601(),
+  body('deliveryDate').isISO8601().optional(),
+  body('weight').optional().isFloat({ min: 0 }),
+  body('rate').optional().isFloat({ min: 0 }),
+  body('cubic_feet')
+    .optional()
+    .isInt({ min: 1, max: 4000 })
+    .withMessage('Cubic feet must be between 1 and 4000'),
+  handleValidationErrors
+];
+
+
 exports.validateRequest = [
   body('message').optional().isString(),
   body('proposedRate').optional().isFloat({ min: 0 }),
