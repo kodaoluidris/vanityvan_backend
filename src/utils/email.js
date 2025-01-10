@@ -2,8 +2,8 @@ const nodemailer = require('nodemailer');
 console.log(process.env.SMTP_USER, "process.env.SMTP_USER")
 // Create transporter using Mailtrap settings
 const transporter = nodemailer.createTransport({
-    host: "sandbox.smtp.mailtrap.io",
-    port: 587,  // Important: Use port 2525 for Mailtrap
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT,  // Important: Use port 2525 for Mailtrap
     secure: false,
     auth: {
         user: process.env.SMTP_USER,    // "y27a54c7306b72b"
