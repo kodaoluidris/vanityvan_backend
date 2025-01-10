@@ -23,7 +23,7 @@ exports.sendEmail = async ({ to, subject, html }) => {
 
         console.log('Mail configuration:', {
             host: process.env.SMTP_HOST,
-            port: '2525',
+            port: process.env.SMTP_PORT,
             user: process.env.SMTP_USER
         });
 
