@@ -11,13 +11,13 @@ const fileUpload = require('express-fileupload');
 const app = express();
 
 
-// const corsOptions = {
-//   origin: 'http://localhost:3000', // Replace with your frontend's URL
-//   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-//   credentials: true, // Include cookies or authentication headers if needed
-// };
+const corsOptions = {
+  origin: 'https://mymovingmaps.com', // Replace with your frontend's URL
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true, // Include cookies or authentication headers if needed
+};
 
-// app.use(cors(corsOptions));
+app.use(cors(corsOptions));
 
 // 
 // Security Middleware
