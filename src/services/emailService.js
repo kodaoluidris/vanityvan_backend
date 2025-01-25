@@ -92,7 +92,7 @@ class EmailService {
   async sendWelcomeEmail(user) {
     await this.sendEmail(
       user.email,
-      'Welcome to VanityVan',
+      'Welcome to Mymovingmaps',
       'welcome',
       {
         name: user.firstName,
