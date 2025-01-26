@@ -437,7 +437,7 @@ class AuthController {
 
       // Create reset URL
       const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-
+      console.log(resetUrl);
       // Email content
       const emailContent = {
         to: user.email,
@@ -450,7 +450,7 @@ class AuthController {
           <p>If you didn't request this, please ignore this email.</p>
         `
       };
-
+      console.log(emailContent);
       // Send email
       await sendEmail(emailContent);
 
