@@ -14,30 +14,43 @@ const transporter = nodemailer.createTransport({
         rejectUnauthorized: false,
         minVersion: 'TLSv1.2',
         ciphers: 'HIGH:MEDIUM:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!SRP:!CAMELLIA'
-    }
+    },
+    debug: true, // Enable debug logs
+    logger: true // Enable logger
 });
 
 // Send email function
 exports.sendEmail = async ({ to, subject, html }) => {
     try {
         const mailOptions = {
-            from: process.env.SMTP_FROM,
+            from: process.env.EMAIL_FROM,
             to,
             subject,
             html
         };
 
-        console.log('Mail configuration:', {
-            host: process.env.SMTP_HOST,
-            port: process.env.SMTP_PORT,
-            user: process.env.SMTP_USER
+        console.log('Attempting to send email with options:', {
+            from: process.env.EMAIL_FROM,
+            to,
+            subject,
+            smtpHost: process.env.SMTP_HOST,
+            smtpPort: process.env.SMTP_PORT
         });
 
         const info = await transporter.sendMail(mailOptions);
-        console.log('Email sent successfully:', info.messageId);
+        console.log('Email sent successfully. Full response:', {
+            messageId: info.messageId,
+            response: info.response,
+            envelope: info.envelope
+        });
         return info;
     } catch (error) {
-        console.error('Email sending failed:', error);
+        console.error('Email sending failed. Detailed error:', {
+            errorName: error.name,
+            errorMessage: error.message,
+            errorStack: error.stack,
+            errorCode: error.code
+        });
         throw error;
     }
 }; 
