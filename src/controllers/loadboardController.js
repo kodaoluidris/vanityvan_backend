@@ -466,16 +466,14 @@ exports.scrapeAndSaveLoadboardData = async (req, res) => {
 
 exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
     try {
-        const brokers = await User.findAll({
+        const users = await User.findAll({
             where: {
                 loadBoardUrls: {
                     [Op.ne]: []
                 }
             },
-            attributes: ['id', 'companyName', 'loadBoardUrls']
+            attributes: ['id', 'companyName', 'loadBoardUrls', 'userType']
         });
-
-        
 
         const axiosInstance = axios.create({
             headers: {
@@ -490,94 +488,46 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
 
         let totalLoadsSaved = 0;
         const scrapingSummary = [];
+        const allJobNumbers = {};  // Track job numbers per user
 
-        // Helper function to parse dates
+        // Reuse the same parsing functions
         const parseCompoundDate = (dateStr) => {
-            console.log('\n=== parseCompoundDate ===');
-            console.log('Input dateStr:', dateStr);
-            
-            if (!dateStr) {
-                console.log('Empty date string received');
-                return null;
-            }
-            
+            if (!dateStr) return null;
             const dates = dateStr.match(/(\d{2}\/\d{2}\/\d{4})/g);
-            console.log('Matched dates:', dates);
-            
-            if (!dates) {
-                console.log('No dates matched the pattern');
-                return null;
-            }
-
             return dates;
         };
 
         const parseDate = (dateStr) => {
-            console.log('\n=== parseDate ===');
-            console.log('Input dateStr:', dateStr);
-            
-            if (!dateStr) {
-                console.log('Empty date string received');
-                return null;
-            }
-            
-            // Expected format: MM/DD/YYYY
+            if (!dateStr) return null;
             const [month, day, year] = dateStr.split('/');
-            console.log('Split date parts:', { month, day, year });
-            
-            if (!month || !day || !year) {
-                console.log('Invalid date parts');
-                return null;
-            }
-
-            try {
-                // Create date string in MySQL format
-                const mysqlDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')} 00:00:00`;
-                console.log('Formatted MySQL date:', mysqlDate);
-                
-                // Validate the date by trying to parse it
-                const testDate = new Date(mysqlDate);
-                if (isNaN(testDate.getTime())) {
-                    console.log('Invalid date created');
-                    return null;
-                }
-                
-                return mysqlDate;
-            } catch (error) {
-                console.error('Error formatting date:', error);
-                return null;
-            }
+            if (!month || !day || !year) return null;
+            const mysqlDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')} 00:00:00`;
+            const testDate = new Date(mysqlDate);
+            return isNaN(testDate.getTime()) ? null : mysqlDate;
         };
 
-        for (const broker of brokers) {
-            console.log(`Processing broker ${broker.id} with company ${broker.companyName}`);
-            
-            for (const url of broker.loadBoardUrls) {
-                try {
-                    // Initialize brokerLoads array at the start of each URL processing
-                    const brokerLoads = [];
+        for (const user of users) {
+            console.log(`Processing user ${user.id} with company ${user.companyName}`);
+            allJobNumbers[user.id] = [];  // Initialize job numbers array for this user
 
-                    // Get the main page
+            for (const url of user.loadBoardUrls) {
+                try {
+                    // Use the same scraping logic as scrapeAndSaveLoadboardData
                     const response = await axiosInstance.get(url);
                     const $ = cheerio.load(response.data);
                     
-                    // Extract the frame URL
                     const frameSrc = $('frame[name="BODY"]').attr('src');
-
                     if (!frameSrc) {
                         console.log('No frame found with name "BODY"');
                         continue;
                     }
 
-                    // Construct frame URL
                     const frameUrl = frameSrc.startsWith('http') 
                         ? frameSrc 
                         : frameSrc.startsWith('/') 
                             ? `${new URL(url).origin}${frameSrc}`
                             : `${new URL(url).origin}/${frameSrc}`;
 
-                    console.log('Frame URL:', frameUrl);
-                    // Get frame content with cookies
                     const frameResponse = await axiosInstance.get(frameUrl, {
                         headers: {
                             ...axiosInstance.defaults.headers,
@@ -585,20 +535,18 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
                             'Cookie': response.headers['set-cookie']?.join('; '),
                         }
                     });
-              
-                    // Add verification and retry logic here
+
+                    // Same verification and retry logic
                     let retryCount = 0;
                     let frameData;
                     while (retryCount < 3) {
                         frameData = cheerio.load(frameResponse.data);
                         const loadTable = frameData('table[border="2"]');
                         
-                        if (loadTable.length > 0) {
-                            break; // Content loaded successfully
-                        }
+                        if (loadTable.length > 0) break;
                         
                         console.log(`Content not fully loaded, attempt ${retryCount + 1} of 3`);
-                        await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+                        await new Promise(resolve => setTimeout(resolve, 3000));
                         retryCount++;
                         
                         if (retryCount < 3) {
@@ -615,13 +563,16 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
 
                     if (frameResponse.status === 200) {
                         const frameData = cheerio.load(frameResponse.data);
-                        
-                        // Find the main table with the load data (the one with border=2)
+                        const phoneNumber = frameData('table[border="0"] tr:nth-child(2) td b font').text().trim();
                         const loadTable = frameData('table[border="2"]');
-                        
+
                         if (loadTable.length) {
+                            const headerRow = frameData(loadTable.find('tr').first());
+                            const headers = headerRow.find('td').map((i, el) => frameData(el).text().trim()).get();
+                            const isNewFormat = headers.includes('CF') && headers.includes('Lbs');
+                            
                             for (const element of loadTable.find('tr').toArray()) {
-                                if (frameData(element).index() === 0) continue; // Skip header
+                                if (frameData(element).index() === 0) continue;
                                 
                                 try {
                                     console.log('\n=== Processing Row ===');
@@ -630,6 +581,8 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
                                     
                                     const jobNumber = cells.eq(0).text().trim();
                                     if (!jobNumber) continue;
+                                    
+                                    allJobNumbers[user.id].push(jobNumber);
 
                                     // Get dates
                                     const dateText = cells.eq(2).text().trim();
@@ -675,7 +628,7 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
                                     const miles = parseInt(cells.eq(10).text().trim()) || 0;
                                     const estimate = parseFloat(cells.eq(11).text().trim().replace('$', '').replace(',', '')) || 0;
 
-                                    switch(broker.userType){
+                                    switch(user.userType){
                                         case 'BROKER':
                                             loadType = 'RFP';
                                             break;
@@ -690,7 +643,7 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
                                     }
 
                                     const dbLoadData = {
-                                        userId: broker.id,
+                                        userId: user.id,
                                         loadType: loadType,
                                         status: 'ACTIVE',
                                         pickupLocation: originLocation.location,
@@ -714,7 +667,7 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
                                                 destination: destLocation.coordinates
                                             }
                                         },
-                                        mobilePhone: '561-201-7453'
+                                        mobilePhone: phoneNumber??NULL // Use extracted phone number
                                     };
 
                                     console.log('\n=== Final Data Check ===');
@@ -735,29 +688,37 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
                                     totalLoadsSaved++;
 
                                 } catch (rowError) {
-                                    console.error('\n=== Error Processing Row ===');
-                                    console.error('Error details:', {
-                                        message: rowError.message,
-                                        stack: rowError.stack,
-                                        sqlMessage: rowError.sqlMessage,
-                                        sql: rowError.sql,
-                                        parameters: rowError.parameters
-                                    });
-                                    throw rowError;
+                                    console.error(`Error processing row for user ${user.id}:`, rowError);
                                 }
                             }
                         }
                     }
 
                 } catch (error) {
-                    console.error(`Error processing URL ${url} for broker ${broker.id}:`, error);
+                    console.error(`Error processing URL ${url} for user ${user.id}:`, error);
                     scrapingSummary.push({
-                        brokerId: broker.id,
-                        companyName: broker.companyName,
+                        userId: user.id,
+                        companyName: user.companyName,
                         error: error.message,
                         url
                     });
                 }
+            }
+
+            // Update status of loads not found in current sync for this user
+            const loadsToUpdate = await Load.findAll({
+                where: {
+                    userId: user.id,
+                    status: 'ACTIVE',
+                    jobNumber: {
+                        [Op.notIn]: allJobNumbers[user.id],
+                        [Op.not]: null
+                    }
+                }
+            });
+
+            for (const load of loadsToUpdate) {
+                await load.update({ status: 'COMPLETED' });
             }
         }
 
@@ -765,7 +726,7 @@ exports.scrapeAndSaveAllLoadboardData = async (req, res) => {
             status: 'success',
             message: `Successfully saved ${totalLoadsSaved} new loads`,
             summary: {
-                brokersProcessed: brokers.length,
+                usersProcessed: users.length,
                 totalLoadsSaved,
                 details: scrapingSummary
             }

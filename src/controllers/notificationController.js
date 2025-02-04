@@ -38,18 +38,18 @@ exports.getNotifications = async (req, res) => {
 
 exports.getUnreadCount = async (req, res) => {
     try {
-        const userId = req.userData.userId;
-        const count = await notificationService.getUnreadCount(userId);
+        const count = await notificationService.getUnreadCount(req.userData.userId);
         
-        res.json({
-            status: 'success',
-            data: { count }
+        return res.json({
+            success: true,
+            count: count
         });
     } catch (error) {
-        console.error('Error fetching unread count:', error);
-        res.status(500).json({
-            status: 'error',
-            message: 'Failed to fetch unread count'
+        console.error('Error getting unread notification count:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error getting unread notification count',
+            error: error.message
         });
     }
 };

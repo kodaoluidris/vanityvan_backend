@@ -51,7 +51,8 @@
     "streamifier": "^0.1.1",
     "uuid": "^11.0.3",
     "winston": "^3.17.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zipcodes": "^8.0.0"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.2.0",

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            font-family: Arial, sans-serif;
+            color: #333;
+        }
+        .header {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 3px solid #007bff;
+        }
+        .content {
+            padding: 20px;
+        }
+        .load-details {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        .load-details table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .load-details td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+        }
+        .load-details td:first-child {
+            font-weight: bold;
+            width: 40%;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h2>New Load Alert</h2>
+        </div>
+        <div class="content">
+            <p>Hello {{name}},</p>
+            <p>A new load has been posted in your service area that matches your preferences:</p>
+            
+            <div class="load-details">
+                <table>
+                    <tr>
+                        <td>Job Number:</td>
+                        <td>{{load.jobNumber}}</td>
+                    </tr>
+                    <tr>
+                        <td>Pickup Location:</td>
+                        <td>{{load.pickupLocation}}</td>
+                    </tr>
+                    <tr>
+                        <td>Delivery Location:</td>
+                        <td>{{load.deliveryLocation}}</td>
+                    </tr>
+                    <tr>
+                        <td>Pickup Date:</td>
+                        <td>{{load.pickupDate}}</td>
+                    </tr>
+                    <tr>
+                        <td>Delivery Date:</td>
+                        <td>{{load.deliveryDate}}</td>
+                    </tr>
+                    <tr>
+                        <td>Cubic Feet:</td>
+                        <td>{{load.cubicFeet}}</td>
+                    </tr>
+                    <tr>
+                        <td>Distance:</td>
+                        <td>{{load.details.distance}} miles</td>
+                    </tr>
+                    <tr>
+                        <td>Rate:</td>
+                        <td>{{load.rate}}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <a href="{{viewLoadUrl}}" class="cta-button">View Load Details</a>
+        </div>
+        <div class="footer">
+            <p>You're receiving this because you've enabled email notifications for loads in your service area.</p>
+            <p>To update your notification preferences, visit your <a href="{{settingsUrl}}">account settings</a>.</p>
+        </div>
+    </div>
+</body>
+</html> 
