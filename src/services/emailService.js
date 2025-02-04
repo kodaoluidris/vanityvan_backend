@@ -1,5 +1,5 @@
 const nodemailer = require('nodemailer');
-const AWS = require('aws-sdk');
+const AWS = require('@aws-sdk/client-ses');
 const handlebars = require('handlebars');
 const fs = require('fs').promises;
 const path = require('path');
