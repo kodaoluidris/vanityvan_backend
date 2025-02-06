@@ -15,5 +15,6 @@ router.post('/:loadId/request', auth, LoadController.requestLoad);
 router.get('/:loadId/requests', auth, LoadController.getLoadRequests);
 router.post('/import', auth, LoadController.importLoads);
 router.get('/download-sample', LoadController.downloadSampleCSV);
+router.get('/update-loads', auth, LoadController.updateExpiredLoads);
 
 module.exports = router; 

@@ -1152,6 +1152,66 @@ module.exports = {
                 error: error.message
             });
         }
+    },
+
+    updateExpiredLoads: async (req, res) => {
+        try {
+            const currentDate = new Date();
+            
+            // Find all active loads with delivery dates in the past
+            const expiredLoads = await Load.findAll({
+                where: {
+                    status: 'ACTIVE',
+                    deliveryDate: {
+                        [Op.lt]: currentDate
+                    }
+                }
+            });
+
+            if (!expiredLoads.length) {
+                return res.json({
+                    status: 'success',
+                    message: 'No expired loads found to update',
+                    updatedCount: 0
+                });
+            }
+
+            // Update each load individually to skip validation
+            const updatePromises = expiredLoads.map(load => 
+                Load.update(
+                    {
+                        status: 'COMPLETED',
+                        updatedAt: currentDate
+                    },
+                    {
+                        where: { id: load.id },
+                        individualHooks: false, // Skip validation hooks
+                        validate: false // Skip model validation
+                    }
+                )
+            );
+
+            await Promise.all(updatePromises);
+
+            return res.json({
+                status: 'success',
+                message: `Successfully updated ${expiredLoads.length} expired loads to completed status`,
+                updatedCount: expiredLoads.length,
+                updatedLoads: expiredLoads.map(load => ({
+                    id: load.id,
+                    jobNumber: load.jobNumber,
+                    deliveryDate: load.deliveryDate
+                }))
+            });
+
+        } catch (error) {
+            console.error('Error updating expired loads:', error);
+            return res.status(500).json({
+                status: 'error',
+                message: 'Error updating expired loads',
+                error: error.message
+            });
+        }
     }
 }; 
 
