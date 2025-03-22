@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { User, Load } = require('../models');
 const { Op } = require('sequelize');
 const axios = require('axios');
@@ -21,7 +22,7 @@ exports.getAllLoadboardData = async (req, res) => {
         const allLoadboardData = [];
         
         const axiosInstance = axios.create({
-            httpsAgent: new HttpsProxyAgent(`http://brd-customer-hl_3380cf13-zone-datacenter_proxy1:58s3ebtyqtb7@brd.superproxy.io:33335`),
+            httpsAgent: new HttpsProxyAgent(process.env.PROXY_URL),
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
